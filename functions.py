@@ -3,6 +3,7 @@ import numpy as np
 import openpyxl
 import os 
 import csv
+import time
 import win32com.client
 from tkinter import *
 from tkinter import messagebox, ttk
@@ -41,6 +42,10 @@ def get_sheets():
     и загружает его в файл .sheets.csv
     Затем функция открывает на рабочем столе файл .sheets.xlsm
     """
+    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsm')):
+        messagebox.showerror(TITLE,'Таблица уже открыта!\nЗакройте таблицу и повторите попытку!')
+        return
+    global wb_get_sheets
     source_folder = os.walk('Исходники')
     sheets_list = []
     for i in source_folder:
@@ -95,21 +100,31 @@ def get_sheets():
         writer.writerows(sheets_list)
 
     #os.system('start excel.exe %s'%('.sheets.xlsm'))
-    
-    fileName = os.path.join(os.getcwd(),'.sheets.xlsm')
-    xl = win32com.client.DispatchEx("Excel.Application")
-    wb = xl.Workbooks.Open(fileName)
-    xl.Visible = True
-    wb.RefreshAll()    
+    try:
+        wb_get_sheets.RefreshAll()   
+    except:
+        fileName = os.path.join(os.getcwd(),'.sheets.xlsm')
+        xl_get_sheets = win32com.client.DispatchEx("Excel.Application")
+        wb_get_sheets = xl_get_sheets.Workbooks.Open(fileName)
+        xl_get_sheets.Visible = True
+        wb_get_sheets.RefreshAll()
+    return wb_get_sheets
 """
 if __name__ == '__main__':   
     get_sheets()
 """
+
 def show_sheets():
-    fileName = os.path.join(os.getcwd(),'.sheets.xlsm')
-    xl = win32com.client.DispatchEx("Excel.Application")
-    wb = xl.Workbooks.Open(fileName)
-    xl.Visible = True
+    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsm')):
+        messagebox.showwarning(TITLE,'Таблица уже открыта!')
+        return
+    else:
+        fileName = os.path.join(os.getcwd(),'.sheets.xlsm')
+        xl_show_sheets = win32com.client.DispatchEx("Excel.Application")
+        xl_show_sheets.Workbooks.Open(fileName)
+        xl_show_sheets.Visible = True   
+
+
 
 
 
@@ -313,7 +328,9 @@ def open_headers_xls(headers_button):
     Функция открывает файл .headers.xlsx
     """
     global wb, tables_from_sheets_list
-
+    if os.path.exists(os.path.join(os.getcwd(),'~$.headers.xlsx')):
+        messagebox.showerror(TITLE,'Таблица уже открыта!\nЗакройте её и повторите попытку!')
+        return
     headers_button.pack_forget()
 
     tables_from_sheets_list = get_tables_from_sheets()
@@ -332,7 +349,7 @@ def open_headers_xls(headers_button):
         headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
         
 
-    return wb, tables_from_sheets_list 
+    return wb
   
 #wb = open_headers_xls()
 """
@@ -355,16 +372,32 @@ def concat_tables():
     for table_dict in tables_from_sheets_list:
         #print(table_dict)
         try: 
+            #print("a\n",table_dict['Таблица'])
+
             #print('table_dict\n',table_dict )
             header_row = table_dict['Строка заголовка']
             #print('header_row\n',header_row)
             header_list = list(table_dict['Таблица'].iloc[header_row])[4:]
             #print('header_list\n',header_list)
-            column_names = ['Папка','Книга','Лист','Строка в исходнике'] + header_list
+            column_names_raw = ['Папка','Книга','Лист','Строка в исходнике'] + header_list
+            i=0
+            column_names = []
+            for column_name_raw in column_names_raw:
+                if pd.isna(column_name_raw):
+                    column_name = '_' + str(i)
+                    i += 1
+                else:
+                    column_name = column_name_raw
+                column_names.append(column_name)
+                #print(column_names)
+
+
+
             #print('column_names\n',column_names)
             #print('Таблица\n',table_dict['Таблица'])
             result_table = table_dict['Таблица'][header_row+1:]
             result_table.columns = column_names
+            result_table = result_table.dropna(how='all', axis = 1)
             #print('result\n',result_table)
             #print('-'*100,'\n')
             print(Fore.GREEN + 'Папка: {Папка} Книга: {Книга} Лист: {Лист} - данные извлечены успешно!'.format(**table_dict) + Fore.WHITE)
