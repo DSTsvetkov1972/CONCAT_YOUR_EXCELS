@@ -17,7 +17,10 @@ print("-------------------------------------------------------------------------
 print(Fore.BLUE + '\nЕсть вопросы к разработчикам?\nПишите: ' + Fore.CYAN + 'TsvetkovDS@trcont.ru\n' + Fore.BLUE  + 'Будем рады Вам помочь!',
       sep = '\n')
 
+
+
 root = Tk()
+
 root.title(TITLE)
 root.geometry("250x250")
 sheets_button = ttk.Button(root, text ="Собрать информацию о листах", width = 30, command = get_sheets)
@@ -30,10 +33,5 @@ headers_button = ttk.Button(root, text ="Собрать заголовки", wid
 headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
 
 headers_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = concat_tables)
-
-
-
-
-
 
 root.mainloop()
