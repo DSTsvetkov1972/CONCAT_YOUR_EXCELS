@@ -118,8 +118,10 @@ def get_sheets(show_sheets_button,get_headers_button):
 if __name__ == '__main__':   
     get_sheets()
 """
-
+@start_finish_time
+@proceed_type('"Открываем файл с листами в книгах"')
 def show_sheets():
+    #print('dfg')
     if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsm')):
         messagebox.showwarning(TITLE,'Таблица уже открыта!')
         return
@@ -128,12 +130,6 @@ def show_sheets():
         xl_show_sheets = win32com.client.DispatchEx("Excel.Application")
         xl_show_sheets.Workbooks.Open(fileName)
         xl_show_sheets.Visible = True   
-
-
-
-
-
-
 
 
 #print(fileName)
@@ -156,12 +152,17 @@ os.system("taskkill /f /im excel.exe")
 
 @start_finish_time
 @proceed_type('"Создание списка таблиц"')
-def get_tables_from_sheets(tables_from_sheets_dict,get_headers_button):
+def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
     print('tables_from_sheets_dict_ДО\n',tables_from_sheets_dict.keys())
 
     # если поменялись отобранные листы, то проверяем какие таблицы нужно загрузить
     sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsm'), header = 0)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
+    sheets_for_processing_list.clear()
+    for row in sheets_for_processing_df.itertuples():
+        sheets_for_processing_list.append(row[1:4]+row[7:])
+   
+    print("fffffffffffffffffffffffffffffffff\n",sheets_for_processing_list)
     if os.path.exists(os.path.join(os.getcwd(),'.selected_sheets.csv')):
         sheets_for_processing_df_before = pd.read_csv(os.path.join(os.getcwd(),'.selected_sheets.csv'),sep='\t')
     else:
@@ -183,7 +184,6 @@ def get_tables_from_sheets(tables_from_sheets_dict,get_headers_button):
                 columns_limit = int(row[1]['Сколько колонок нужно'])
 
                 if  (folder,book,sheet,rows_limit,columns_limit) not in tables_from_sheets_dict:
-                    print('Получаем таблицу из экслея')
                     try:
                         table = pd.read_excel(os.path.join(folder,book), sheet_name = sheet, header = None,  nrows = rows_limit, usecols = range(columns_limit))#.iloc[:,:columns_limit]
                     except:
@@ -194,7 +194,10 @@ def get_tables_from_sheets(tables_from_sheets_dict,get_headers_button):
                     table.insert(2, 'Лист'  , sheet)
                     table.insert(3, 'Строка в исходнике', table.index.tolist())
                     tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]={'Таблица': table,'Превью': table.iloc[:30,:30]}
-                print(Fore.GREEN + folder,book,sheet + Fore.WHITE)
+                    print(Fore.GREEN + folder,book,sheet + Fore.WHITE+' (загрузили из экселя)')
+                else:
+                    print(Fore.GREEN + folder,book,sheet + Fore.WHITE+' (уже была загружена)')
+                
             #except:
             #    print(Fore.RED + 'Не удалось получить информацию для:\n' +folder,book,sheet + Fore.WHITE)
 
@@ -215,18 +218,18 @@ def get_exceptions():
 
 @start_finish_time
 @proceed_type('"Получение заголовков"')
-def get_headers(tables_from_sheets_dict, concat_tables_button):
+def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
 
     exceptions_list = get_exceptions()
-    get_tables_from_sheets(tables_from_sheets_dict)
+    get_tables_from_sheets(tables_from_sheets_dict,sheets_for_processing_list)
     headers_specifications_df = pd.read_excel('.headers.xlsx', sheet_name = 'Settings')  #print(headers_specifications_df)  
 
     all_tables_headers_df = pd.DataFrame()
     table_with_not_located_headers = pd.DataFrame()
     
-    for table_from_sheets_dict in tables_from_sheets_dict:
+    for sheet_for_processing_list in sheets_for_processing_list:
         #print(headers_specifications_df)
-        print(Fore.GREEN + 'Папка: {Папка} Книга: {Книга} Лист: {Лист}'.format(**table_from_sheets_list) + Fore.WHITE)
+        print(Fore.GREEN + "Папка: {} Книга: {} Лист: {}".format(*sheet_for_processing_list) + Fore.WHITE)
         #print("table_dict['Таблица']\n",table_dict['Таблица'])
         #print('*'*50)
         #break
@@ -241,7 +244,7 @@ def get_headers(tables_from_sheets_dict, concat_tables_button):
 
             # отрабатываем то, что в таблице может быть меньше колонок чем в спецификации на поиск заголовка
             try:          
-                header_df = table_from_sheets_dict['Таблица'][table_from_sheets_dict['Таблица'][column_number] == sign ] 
+                header_df = tables_from_sheets_dict[(sheet_for_processing_list)]['Превью'][tables_from_sheets_dict[(sheet_for_processing_list)]['Превью'][column_number] == sign ] 
             except KeyError:
                 header_df = pd.DataFrame() 
 
@@ -260,7 +263,7 @@ def get_headers(tables_from_sheets_dict, concat_tables_button):
                 if header_list not in exceptions_list:
                     table_headers_df = table_headers_df._append(header_df)
                     #print(table_headers_df)
-                    table_from_sheets_dict['Строка заголовка']  = table_headers_df.index[0]
+                    tables_from_sheets_dict[(sheet_for_processing_list)]['Строка заголовка']  = table_headers_df.index[0]
                     #print(table_from_sheets_list['Строка заголовка'] )
                 else:
                     print('Найденный заголовок в списке исключений!')
@@ -269,15 +272,15 @@ def get_headers(tables_from_sheets_dict, concat_tables_button):
             #print('table_headers_df\n',table_headers_df)
             #print('$'*50)    
         if len(table_headers_df) == 0:
-            table_headers_df = pd.DataFrame([{'Папка':table_from_sheets_list['Папка'],
-                                              'Книга':table_from_sheets_list['Книга'],
-                                              'Лист':table_from_sheets_list['Лист'],
+            table_headers_df = pd.DataFrame([{'Папка':sheet_for_processing_list[0],
+                                              'Книга':sheet_for_processing_list[1],
+                                              'Лист':sheet_for_processing_list[2],
                                               'Строка':'',
                                               'Найден по колонке':'',
                                               'По признаку':''
                                               }])
-            table_with_not_located_headers = table_from_sheets_list['Таблица']
-            table_from_sheets_dict['Строка заголовка']  = None  
+            table_with_not_located_headers = tables_from_sheets_dict[(sheet_for_processing_list)]['Таблица']
+            tables_from_sheets_dict[(sheet_for_processing_list)]['Строка заголовка']  = None  
         
         table_with_not_located_headers.to_csv('.table_with_not_located_headers.csv', sep = '\t', index= False)         
         all_tables_headers_df = all_tables_headers_df._append(table_headers_df, ignore_index = True)
@@ -292,8 +295,13 @@ def get_headers(tables_from_sheets_dict, concat_tables_button):
     all_tables_headers_df.to_csv('.headers.csv', sep = '\t', index= False)
     #concat_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = concat_tables)
     #concat_button.pack(anchor = CENTER, pady = (25,0))
+    print(tables_from_sheets_dict)
 
 
+
+
+@start_finish_time
+@proceed_type('"Проверка на наличие случаев, когда для одной таблицы найдено несколько заголовков"')
 def check_multiple_headers():
     try:
         headers_df = pd.read_csv('.headers.csv', sep ='\t')
@@ -317,6 +325,8 @@ def check_multiple_headers():
 if __name__ == '__main__':
     print(check_multiple_headers())
 
+@start_finish_time
+@proceed_type('"Проверка на наличие случаев, когда для таблицы не найдено ни одного заголовка"')
 def check_no_header(): 
     """
     Возвращает истину если нет таблиц с необнаружеными заголовками
@@ -332,20 +342,17 @@ def check_no_header():
 
 
     
-@start_finish_time
-@proceed_type('"Отобразить .headers.xlsx"')
-def open_headers_xls(headers_button):
+#@start_finish_time
+#@proceed_type('"Отобразить .headers.xlsx"')
+def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button):
     """
     Функция открывает файл .headers.xlsx
     """
-    global wb, tables_from_sheets_list
     if os.path.exists(os.path.join(os.getcwd(),'~$.headers.xlsx')):
         messagebox.showerror(TITLE,'Таблица уже открыта!\nЗакройте её и повторите попытку!')
         return
-    headers_button.pack_forget()
-
-    tables_from_sheets_list = get_tables_from_sheets()
-    tables_from_sheets_list = get_headers(tables_from_sheets_list)
+    concat_tables_button.pack_forget()
+    get_headers(tables_from_sheets_dict, sheets_for_processing_list)
 
     try:
         wb.RefreshAll()
@@ -357,10 +364,9 @@ def open_headers_xls(headers_button):
         wb.RefreshAll()
 
     if check_multiple_headers() and check_no_header():
-        headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
+        concat_tables_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
         
 
-    return wb
   
 #wb = open_headers_xls()
 """
@@ -372,23 +378,23 @@ while True:
 
 @start_finish_time
 @proceed_type('"Объединение таблиц"')
-def concat_tables():
+def concat_tables(tables_from_sheets_dict,sheets_for_processing_list):
     if not check_no_header():
         return
     if not check_multiple_headers():
        return
-    global tables_from_sheets_list
+
     total_table_df = pd.DataFrame()
 
-    for table_dict in tables_from_sheets_list:
+    for sheet_for_processing_list in sheets_for_processing_list:
         #print(table_dict)
         try: 
             #print("a\n",table_dict['Таблица'])
 
             #print('table_dict\n',table_dict )
-            header_row = table_dict['Строка заголовка']
+            header_row = tables_from_sheets_dict[(sheet_for_processing_list)]['Строка заголовка']
             #print('header_row\n',header_row)
-            header_list = list(table_dict['Таблица'].iloc[header_row])[4:]
+            header_list = list(tables_from_sheets_dict[(sheet_for_processing_list)]['Таблица'].iloc[header_row])[4:]
             #print('header_list\n',header_list)
             column_names_raw = ['Папка','Книга','Лист','Строка в исходнике'] + header_list
             i=0
@@ -406,14 +412,14 @@ def concat_tables():
 
             #print('column_names\n',column_names)
             #print('Таблица\n',table_dict['Таблица'])
-            result_table = table_dict['Таблица'][header_row+1:]
+            result_table = tables_from_sheets_dict[(sheet_for_processing_list)]['Таблица'][header_row+1:]
             result_table.columns = column_names
             result_table = result_table.dropna(how='all', axis = 1)
             #print('result\n',result_table)
             #print('-'*100,'\n')
-            print(Fore.GREEN + 'Папка: {Папка} Книга: {Книга} Лист: {Лист} - данные извлечены успешно!'.format(**table_dict) + Fore.WHITE)
+            print(Fore.GREEN + 'Папка: {} Книга: {} Лист: {} - данные извлечены успешно!'.format(*sheet_for_processing_list) + Fore.WHITE)
         except:
-            print(Fore.RED + 'Папка: {Папка} Книга: {Книга} Лист: {Лист} - НЕ УДАЛОСЬ ИЗВЛЕЧЬ ДАННЫЕ!'.format(**table_dict) + Fore.WHITE)
+            print(Fore.RED + 'Папка: {} Книга: {} Лист: {} - НЕ УДАЛОСЬ ИЗВЛЕЧЬ ДАННЫЕ!'.format(*sheet_for_processing_list) + Fore.WHITE)
             continue
         total_table_df = total_table_df._append(result_table, ignore_index = True)
     #total_table_df = total_table_df.replace('',np.nan)
