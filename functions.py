@@ -162,7 +162,6 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
     for row in sheets_for_processing_df.itertuples():
         sheets_for_processing_list.append(row[1:4]+row[7:])
    
-    print("fffffffffffffffffffffffffffffffff\n",sheets_for_processing_list)
     if os.path.exists(os.path.join(os.getcwd(),'.selected_sheets.csv')):
         sheets_for_processing_df_before = pd.read_csv(os.path.join(os.getcwd(),'.selected_sheets.csv'),sep='\t')
     else:
@@ -279,7 +278,7 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
                                               'Найден по колонке':'',
                                               'По признаку':''
                                               }])
-            table_with_not_located_headers = tables_from_sheets_dict[(sheet_for_processing_list)]['Таблица']
+            table_with_not_located_headers = tables_from_sheets_dict[(sheet_for_processing_list)]['Превью']
             tables_from_sheets_dict[(sheet_for_processing_list)]['Строка заголовка']  = None  
         
         table_with_not_located_headers.to_csv('.table_with_not_located_headers.csv', sep = '\t', index= False)         
@@ -295,13 +294,13 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
     all_tables_headers_df.to_csv('.headers.csv', sep = '\t', index= False)
     #concat_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = concat_tables)
     #concat_button.pack(anchor = CENTER, pady = (25,0))
-    print(tables_from_sheets_dict)
+    #print(tables_from_sheets_dict)
 
 
 
 
-@start_finish_time
-@proceed_type('"Проверка на наличие случаев, когда для одной таблицы найдено несколько заголовков"')
+#@start_finish_time
+#@proceed_type('"Проверка на наличие случаев, когда для одной таблицы найдено несколько заголовков"')
 def check_multiple_headers():
     try:
         headers_df = pd.read_csv('.headers.csv', sep ='\t')
@@ -325,8 +324,8 @@ def check_multiple_headers():
 if __name__ == '__main__':
     print(check_multiple_headers())
 
-@start_finish_time
-@proceed_type('"Проверка на наличие случаев, когда для таблицы не найдено ни одного заголовка"')
+#@start_finish_time
+#@proceed_type('"Проверка на наличие случаев, когда для таблицы не найдено ни одного заголовка"')
 def check_no_header(): 
     """
     Возвращает истину если нет таблиц с необнаружеными заголовками
@@ -378,7 +377,18 @@ while True:
 
 @start_finish_time
 @proceed_type('"Объединение таблиц"')
-def concat_tables(tables_from_sheets_dict,sheets_for_processing_list):
+def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button):
+    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsm'), header = 0)
+    sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
+    sheets_for_processing_list_actual = []
+    for row in sheets_for_processing_df.itertuples():
+        sheets_for_processing_list_actual.append(row[1:4]+row[7:])
+
+
+    if  sorted(sheets_for_processing_list_actual) != sorted(sheets_for_processing_list):
+        concat_tables_button.pack_forget()
+        messagebox.showwarning(TITLE, "Требуется пересобрать заголовки")   
+        return
     if not check_no_header():
         return
     if not check_multiple_headers():

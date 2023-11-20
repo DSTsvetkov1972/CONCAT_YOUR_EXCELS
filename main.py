@@ -44,7 +44,7 @@ if os.path.exists(os.path.join(os.getcwd(),'.sheets.csv')):
       get_headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
 
 
-concat_tables_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = lambda:fn.concat_tables(tables_from_sheets_dict,sheets_for_processing_list))
+concat_tables_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = lambda:fn.concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button))
 
 
 root.mainloop()
