@@ -341,7 +341,15 @@ def check_no_header():
         print(Fore.GREEN + 'Заголовки найдены для всех таблиц!' + Fore.WHITE)        
         return True
 
-
+def check_identical_column_names(list_to_check):
+    list_to_check = list_to_check
+    identical_column_names_list = []
+    while list_to_check:
+        i = list_to_check[0]
+        list_to_check = list_to_check[1:]
+        if i in list_to_check and i not in identical_column_names_list:
+            identical_column_names_list.append(i)
+    return identical_column_names_list
 
     
 #@start_finish_time
@@ -385,23 +393,24 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list_actual = []
     sheets_for_processing_list_cant_add = []
+
     for row in sheets_for_processing_df.itertuples():
         sheets_for_processing_list_actual.append(row[1:4]+row[7:])
-
-
     if  sorted(sheets_for_processing_list_actual) != sorted(sheets_for_processing_list):
         concat_tables_button.pack_forget()
         messagebox.showwarning(TITLE, "Требуется пересобрать заголовки")   
         return
+    
     if not check_no_header():
         return
     if not check_multiple_headers():
        return
+    
     total_table_df = pd.DataFrame()
 
     for sheet_for_processing_list in sheets_for_processing_list:
-        print(Fore.WHITE + 'Папка: {} Книга: {} Лист: {}'.format(*sheet_for_processing_list), end = ' ')
-        try: 
+            print(Fore.WHITE + 'Папка: {} Книга: {} Лист: {}'.format(*sheet_for_processing_list), end = ' ')
+        #try: 
             header_row = tables_from_sheets_dict[(sheet_for_processing_list)]['Строка заголовка']
             header_list = list(tables_from_sheets_dict[(sheet_for_processing_list)]['Таблица'].iloc[header_row])[4:]
             column_names_raw = ['Папка','Книга','Лист','Строка в исходнике'] + header_list
@@ -414,13 +423,23 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
                 else:
                     column_name = column_name_raw
                 column_names.append(column_name)
+            identical_column_names = ', '.join(list(map(str,check_identical_column_names(column_names))))
+            if identical_column_names:
+                sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3])
+                sheet_for_processing_list_cant_add.append(identical_column_names)
+                sheets_for_processing_list_cant_add.append(('Папка: {} Книга: {} Лист: {} Колонки {} встречаются более одного раза!'.format(*sheet_for_processing_list_cant_add)))
+                print(Fore.RED + ' - таблица не может быть обработана так как названия колонок ',
+                      Fore.WHITE + identical_column_names,
+                      Fore.RED + ' встречаются более одного раза!' + Fore.WHITE)
+                continue
             result_table = tables_from_sheets_dict[(sheet_for_processing_list)]['Таблица'][header_row+1:]
+            result_table.columns = column_names
             result_table = result_table.dropna(how='all', axis = 1)
             total_table_df = total_table_df._append(result_table, ignore_index = True)
             print(Fore.GREEN + ' - данные извлечены и добавлены в итоговую таблицу' + Fore.WHITE)
-        except:
-            sheets_for_processing_list_cant_add.append(sheets_for_processing_list_cant_add)
-            print(Fore.RED + 'НЕ УДАЛОСЬ ИЗВЛЕЧЬ ДАННЫЕ! ВОЗМОЖНО ТАБЛИЦА СОДЕРЖИТ ОДИНАКОВЫЕ ЗАГОЛОВКИ!')
+        #except:
+        #    sheets_for_processing_list_cant_add.append(sheets_for_processing_list_cant_add)
+        #    print(Fore.RED + 'НЕ УДАЛОСЬ ИЗВЛЕЧЬ ДАННЫЕ ПО ПРИЧИНЕ РАНЕЕ НЕ ВСТРЕЧАВШЕЙСЯ! ОБРАТИТЕСЬ К РАЗРАБОТЧИКАМ!')
         #    continue
         #finally:
         #    print(total_table_df)
@@ -441,8 +460,9 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     if len(sheets_for_processing_list_cant_add) > 0:
         print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
         for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
-            print(Fore.RED + 'Папка: {} Книга: {} Лист: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
-        messagebox.showwarning(TITLE, "Таблицы объеденены,\n.НО НЕ ВСЕ!\nРезультат записан в RESULT.csv'")   
+            print(Fore.RED + sheet_for_processing_list_cant_add + Fore.WHITE)
+            #print(Fore.RED + 'Папка: {} Книга: {} Лист: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
+        messagebox.showwarning(TITLE, "Таблицы объеденены,\nНО НЕ ВСЕ!\nРезультат записан в RESULT.csv'")   
     else:
         messagebox.showinfo(TITLE, "Таблицы объеденены. Результат записан в RESULT.csv'")
 
