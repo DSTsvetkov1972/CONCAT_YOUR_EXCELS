@@ -395,10 +395,11 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     sheets_for_processing_list_cant_add = []
 
     for row in sheets_for_processing_df.itertuples():
+        print(row)
         sheets_for_processing_list_actual.append(row[1:4]+row[7:])
     if  sorted(sheets_for_processing_list_actual) != sorted(sheets_for_processing_list):
         concat_tables_button.pack_forget()
-        messagebox.showwarning(TITLE, "Требуется пересобрать заголовки")   
+        messagebox.showwarning(TITLE, "Изменился список листов таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!")   
         return
     
     if not check_no_header():
@@ -451,6 +452,8 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     total_table_df = total_table_df.dropna(axis=0,subset=total_table_df_columns,how='all')
     #print(total_table_df)
     total_table_df = total_table_df.dropna(axis=1, how = 'all')
+    total_table_df = total_table_df.fillna('')
+    total_table_df = total_table_df.map(lambda x: str(x).replace(r'\n',r'\\n').replace(chr(10),''))
     #print(total_table_df)
     print(Fore.YELLOW + '', datetime.now(),'\t записываем результат в RESULT.csv' + Fore.WHITE)
  
