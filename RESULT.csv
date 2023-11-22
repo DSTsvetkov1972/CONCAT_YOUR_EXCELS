@@ -1,7 +1,8 @@
 Строка в итоговой таблице	Папка	Книга	Лист	Строка в исходнике	A	B	C
-0	Исходники	Лист Microsoft Excel.xlsx	Лист1	1	1	2	3
-1	Исходники	Лист Microsoft Excel.xlsx	Лист1	2	4	5	6
-2	Исходники	Лист Microsoft Excel.xlsx	Лист1	3	7	8	9
-3	Исходники	Лист Microsoft Excel.xlsx	Лист2	1	a	b	c
-4	Исходники	Лист Microsoft Excel.xlsx	Лист2	2	d	e	f
-5	Исходники	Лист Microsoft Excel.xlsx	Лист2	3	g	h	i
+0	Исходники	Test.xlsx	Лист1	1	1	2	5
+1	Исходники	Test.xlsx	Лист1	2	a\n	b	c
+2	Исходники	Test.xlsx	Лист1	3	d	e	f
+3	Исходники	Test.xlsx	Лист2	1	1	2	5
+4	Исходники	Test.xlsx	Лист2	2	AB	b	c
+5	Исходники	Test.xlsx	Лист2	3	d\n	e	f
+6	Исходники	Test.xlsx	Лист2	4	x	xx	xxx

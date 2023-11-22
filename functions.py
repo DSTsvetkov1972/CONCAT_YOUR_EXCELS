@@ -449,10 +449,9 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     total_table_df = total_table_df.replace('',np.nan)
     total_table_df_columns = total_table_df.columns[4:]
     total_table_df = total_table_df.dropna(axis=0,subset=total_table_df_columns,how='all')
-    #print(total_table_df)
     total_table_df = total_table_df.dropna(axis=1, how = 'all')
     total_table_df = total_table_df.fillna('')
-    total_table_df = total_table_df.map(lambda x: str(x).replace(r'\n',r'\\n').replace(chr(10),''))
+    total_table_df = total_table_df.map(lambda x: str(x).replace(chr(10),''))#.replace(r'\n','\\n'))
     total_table_df.index.rename('Строка в итоговой таблице', inplace= True )
 
 
@@ -462,13 +461,7 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
 
 
 
-    if len(sheets_for_processing_list_cant_add) > 0:
-        print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
-        for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
-            print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
-        messagebox.showwarning(TITLE, "Таблицы объеденены,\nНО НЕ ВСЕ!\nРезультат записан в RESULT.csv'")   
-    else:
-        messagebox.showinfo(TITLE, "Таблицы объеденены. Результат записан в RESULT.csv'")
+
 
     print(Fore.YELLOW + '', datetime.now(),'\t проверяем правильно ли всё записалось' + Fore.WHITE) 
     sheets_for_processing_df = pd.DataFrame(sheets_for_processing_list, columns= ['Папка','Книга','Лист','Строк для сканирования','Колонко для сканирования'])[['Папка','Книга','Лист','Строк для сканирования']]
@@ -476,9 +469,7 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     total_table_df_from_csv = pd.read_csv('RESULT.csv', sep ='\t')
     total_table_df_from_csv_info  = total_table_df_from_csv.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()
     cant_add_df = pd.DataFrame(sheets_for_processing_list_cant_add, columns=['Папка','Книга','Лист','Комментарий'])
-    if not total_table_df_info.equals(total_table_df_from_csv_info):
-        messagebox.showerror(TITLE, 'Почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!')
-    print(Fore.YELLOW + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)
+
     compare_df = sheets_for_processing_df.merge(total_table_df_from_csv_info,
                                            on = ['Папка','Книга','Лист'],
                                            how = 'outer',
@@ -498,8 +489,28 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     compare_df['Загружено в CSV']                                = compare_df['Загружено в CSV'].apply(int)
     print(compare_df)                                           
     compare_df.to_csv('.statistics.csv')
+    print(Fore.YELLOW + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)   
     
     
+    if len(sheets_for_processing_list_cant_add) > 0:
+        print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
+        for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
+            print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
+        messagebox.showwarning(TITLE, "Таблицы объеденены,\n*** НО НЕ ВСЕ ***!\nРезультат записан в RESULT.csv'")   
+    else:
+        messagebox.showinfo(TITLE, "Таблицы объеденены. Результат записан в RESULT.csv'")
+    if not total_table_df_info.equals(total_table_df_from_csv_info):
+        messagebox.showerror(TITLE, 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!')
+    
+    total_table_df_from_csv_len = len(open('RESULT.csv',encoding='utf-8').readlines())
+
+    if (total_table_df_from_csv_len - 1) != len(total_table_df):
+        messagebox.showerror(TITLE, 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!')
+
+
+    if not total_table_df_info.equals(total_table_df_from_csv_info):
+        messagebox.showerror(TITLE, 'Таблицы объеденены, но почему-то агрегированные значения в RESULT.csv не совпадают с агрегированными значениями в total_table_df!')
+
 
     #total_table_df._append(table_df, ignore_index = True)
     #total_table_df.to_csv('RESULT.csv', encoding = 'utf-8', sep='\t')   
