@@ -395,7 +395,7 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     sheets_for_processing_list_cant_add = []
 
     for row in sheets_for_processing_df.itertuples():
-        print(row)
+        #print(row)
         sheets_for_processing_list_actual.append(row[1:4]+row[7:])
     if  sorted(sheets_for_processing_list_actual) != sorted(sheets_for_processing_list):
         concat_tables_button.pack_forget()
@@ -408,7 +408,6 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
        return
     
     total_table_df = pd.DataFrame()
-
     for sheet_for_processing_list in sheets_for_processing_list:
             print(Fore.WHITE + 'Папка: {} Книга: {} Лист: {}'.format(*sheet_for_processing_list), end = ' ')
         #try: 
@@ -426,9 +425,9 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
                 column_names.append(column_name)
             identical_column_names = ', '.join(list(map(str,check_identical_column_names(column_names))))
             if identical_column_names:
-                sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3])
-                sheet_for_processing_list_cant_add.append(identical_column_names)
-                sheets_for_processing_list_cant_add.append(('Папка: {} Книга: {} Лист: {} Колонки {} встречаются более одного раза!'.format(*sheet_for_processing_list_cant_add)))
+                sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3]).copy()
+                sheet_for_processing_list_cant_add.append('Колонки: ' + identical_column_names + ' встречаются более одного раза!')
+                sheets_for_processing_list_cant_add.append(sheet_for_processing_list_cant_add)
                 print(Fore.RED + ' - таблица не может быть обработана так как названия колонок ',
                       Fore.WHITE + identical_column_names,
                       Fore.RED + ' встречаются более одного раза!' + Fore.WHITE)
@@ -454,23 +453,54 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     total_table_df = total_table_df.dropna(axis=1, how = 'all')
     total_table_df = total_table_df.fillna('')
     total_table_df = total_table_df.map(lambda x: str(x).replace(r'\n',r'\\n').replace(chr(10),''))
-    #print(total_table_df)
+    total_table_df.index.rename('Строка в итоговой таблице', inplace= True )
+
+
     print(Fore.YELLOW + '', datetime.now(),'\t записываем результат в RESULT.csv' + Fore.WHITE)
- 
     total_table_df.to_csv('RESULT.csv', sep ='\t')
     print(Fore.YELLOW + '', datetime.now(),'\t результат записан в RESULT.csv' + Fore.WHITE)
+
+
 
     if len(sheets_for_processing_list_cant_add) > 0:
         print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
         for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
-            print(Fore.RED + sheet_for_processing_list_cant_add + Fore.WHITE)
-            #print(Fore.RED + 'Папка: {} Книга: {} Лист: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
+            print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
         messagebox.showwarning(TITLE, "Таблицы объеденены,\nНО НЕ ВСЕ!\nРезультат записан в RESULT.csv'")   
     else:
         messagebox.showinfo(TITLE, "Таблицы объеденены. Результат записан в RESULT.csv'")
 
+    print(Fore.YELLOW + '', datetime.now(),'\t проверяем правильно ли всё записалось' + Fore.WHITE) 
+    sheets_for_processing_df = pd.DataFrame(sheets_for_processing_list, columns= ['Папка','Книга','Лист','Строк для сканирования','Колонко для сканирования'])[['Папка','Книга','Лист','Строк для сканирования']]
+    total_table_df_info = total_table_df.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()   
+    total_table_df_from_csv = pd.read_csv('RESULT.csv', sep ='\t')
+    total_table_df_from_csv_info  = total_table_df_from_csv.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()
+    cant_add_df = pd.DataFrame(sheets_for_processing_list_cant_add, columns=['Папка','Книга','Лист','Комментарий'])
+    if not total_table_df_info.equals(total_table_df_from_csv_info):
+        messagebox.showerror(TITLE, 'Почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!')
+    print(Fore.YELLOW + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)
+    compare_df = sheets_for_processing_df.merge(total_table_df_from_csv_info,
+                                           on = ['Папка','Книга','Лист'],
+                                           how = 'outer',
+                                           suffixes=('_Итоговая таблица', '_Загружено в CSV'))
+    compare_df = compare_df.merge(total_table_df_from_csv_info,
+                                  on = ['Папка','Книга','Лист'],
+                                  how = 'outer')
+    compare_df = compare_df.fillna(0)
+    compare_df = compare_df.merge(cant_add_df,
+                                  on = ['Папка','Книга','Лист'],
+                                  how = 'outer')
+    compare_df = compare_df.fillna('')
+    compare_df = compare_df.rename(columns={'Строка в исходнике_x':'В итоговой таблице после удаления пустых строк','Строка в исходнике_y':'Загружено в CSV'})                                            
+    
+    compare_df['Строк для сканирования']                         = compare_df['Строк для сканирования'].apply(int) 
+    compare_df['В итоговой таблице после удаления пустых строк'] = compare_df['В итоговой таблице после удаления пустых строк'].apply(int)
+    compare_df['Загружено в CSV']                                = compare_df['Загружено в CSV'].apply(int)
+    print(compare_df)                                           
+    compare_df.to_csv('.statistics.csv')
+    
+    
 
-        
     #total_table_df._append(table_df, ignore_index = True)
     #total_table_df.to_csv('RESULT.csv', encoding = 'utf-8', sep='\t')   
 """
