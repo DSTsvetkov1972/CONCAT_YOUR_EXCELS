@@ -16,6 +16,14 @@ warnings.filterwarnings('ignore')
 
 VERSION = 2
 TITLE = "CONCAT_YOUR_EXCELS v/%s"%(VERSION)
+developers_message = """
+    Приложение работает не так как ожидалось?
+    Есть идеи что добавить или улучшить?
+    Хотите угостить разработчиков кофе?
+    Всегда рады будем с Вами пообщаться!
+    Пишите нам на электронку:
+    TsvetkovDS@trcont.ru
+"""
 
 def proceed_type(proceed_type):
     def wrapper(func):
@@ -180,8 +188,11 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
                 sheet         = row[1]['Лист']
                 rows_limit    = int(row[1]['Сколько строк нужно'])
                 columns_limit = int(row[1]['Сколько колонок нужно'])
-                print(Fore.WHITE + 'Книга: %s Папка: %s Лист: %s'%(folder,book,sheet), end =' ')
-                if  (folder,book,sheet,rows_limit,columns_limit) not in tables_from_sheets_dict:
+                print(Fore.WHITE + f'Книга: {folder} Папка: {book} Лист: {sheet}', end =' ')
+                # Таблицу загружаем только если ранее на загружали или если файл изменился
+                if  (((folder,book,sheet,rows_limit,columns_limit) not in tables_from_sheets_dict) or 
+                     (((folder,book,sheet,rows_limit,columns_limit) in tables_from_sheets_dict) and tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]['Последнее обновление исходника'] != os.path.getmtime(os.path.join(os.getcwd(),folder,book)))
+                     ):
                     try:
                         table = pd.read_excel(os.path.join(folder,book), sheet_name = sheet, header = None,  nrows = rows_limit, usecols = range(columns_limit))#.iloc[:,:columns_limit]
                     except:
@@ -191,13 +202,18 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
                     table.insert(1, 'Книга' , book) 
                     table.insert(2, 'Лист'  , sheet)
                     table.insert(3, 'Строка в исходнике', table.index.tolist())
-                    tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]={'Таблица': table,'Превью': table.iloc[:30,:30]}
-                    print(Fore.GREEN + ' - загрузили из экселя')
+                    tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]={'Таблица': table,
+                                                                                           'Превью': table.iloc[:30,:30],
+                                                                                           'Размер датафрейма (кБ)': round(table.memory_usage(deep=True).sum()/1024,2),
+                                                                                           'Последнее обновление исходника':os.path.getmtime(os.path.join(os.getcwd(),folder,book))}
+                    table_size = tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]['Размер датафрейма (кБ)']
+                    print(Fore.GREEN + f' - загрузили из экселя ({table_size:,}кБ)')
                 else:
-                    print(Fore.GREEN + ' - таблица с листа уже была загружена')
+                    table_size = tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]['Размер датафрейма (кБ)']
+                    print(Fore.GREEN + f' - таблица с листа уже была загружена ({table_size:,}кБ)')
                 
             #except:
-            #    print(Fore.RED + 'Не удалось получить информацию для:\n' +folder,book,sheet + Fore.WHITE)
+        #print(Fore.RED, tables_from_sheets_dict, Fore.WHITE)
 
         sheets_for_processing_df.to_csv(os.path.join(os.getcwd(),'.selected_sheets.csv'),sep='\t',index= False)
    # print('tables_from_sheets_dict_ПОСЛЕ\n',tables_from_sheets_dict.keys())
@@ -283,7 +299,7 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
         else:
             print(Fore.GREEN + ' - заголовки найдены')
         
-        table_with_not_located_headers.to_csv('.table_with_not_located_headers.csv', sep = '\t', index= False)         
+        table_with_not_located_headers.to_csv('.table_with_not_located_headers.csv', sep = '\t', index= False)   
         all_tables_headers_df = all_tables_headers_df._append(table_headers_df, ignore_index = True)
         
         #print('aaaaaaaaa', int(column_number),sep='\n')                
@@ -364,14 +380,12 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_t
     concat_tables_button.pack_forget()
     get_headers(tables_from_sheets_dict, sheets_for_processing_list)
 
-    try:
-        wb.RefreshAll()
-    except :
-        fileName = os.path.join(os.getcwd(),'.headers.xlsx')
-        xl = win32com.client.DispatchEx("Excel.Application")
-        wb = xl.Workbooks.Open(fileName)
-        xl.Visible = True
-        wb.RefreshAll()
+
+    fileName = os.path.join(os.getcwd(),'.headers.xlsx')
+    xl = win32com.client.DispatchEx("Excel.Application")
+    wb = xl.Workbooks.Open(fileName)
+    xl.Visible = True
+    wb.RefreshAll()
 
     if check_multiple_headers() and check_no_header():
         concat_tables_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
@@ -388,19 +402,29 @@ while True:
 
 @start_finish_time
 @proceed_type('"Объединение таблиц"')
-def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button):
+def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_tables_button):
+    if os.path.exists(os.path.join(os.getcwd(),'~$.statistics.xlsx')):
+        messagebox.showerror(TITLE,'Закройте таблицу .statistics.xlsx и повторите попытку!')
+        return
     sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsm'), header = 0)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list_actual = []
     sheets_for_processing_list_cant_add = []
 
     for row in sheets_for_processing_df.itertuples():
-        #print(row)
         sheets_for_processing_list_actual.append(row[1:4]+row[7:])
     if  sorted(sheets_for_processing_list_actual) != sorted(sheets_for_processing_list):
         concat_tables_button.pack_forget()
-        messagebox.showwarning(TITLE, "Изменился список листов таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!")   
+        messagebox.showwarning(TITLE, "Изменился список листов, таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!")   
         return
+    print(sheets_for_processing_list_actual)
+    # Проверяем не менялись ли исходники
+    for sheet_for_processing_list_actual in sheets_for_processing_list_actual:
+        #print(sheet_for_processing_list_actual)
+        if tables_from_sheets_dict[sheet_for_processing_list_actual]['Последнее обновление исходника'] != os.path.getmtime(os.path.join(os.getcwd(),sheet_for_processing_list_actual[0],sheet_for_processing_list_actual[1])):
+            concat_tables_button.pack_forget()
+            messagebox.showwarning(TITLE, "Некоторые исходные файлы были изменены.\nТребуется пересобрать заголовки!")   
+            return
     
     if not check_no_header():
         return
@@ -409,6 +433,7 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     
     total_table_df = pd.DataFrame()
     for sheet_for_processing_list in sheets_for_processing_list:
+            #print(Fore.RED+'', sheet_for_processing_list, Fore.WHITE+'')
             print(Fore.WHITE + 'Папка: {} Книга: {} Лист: {}'.format(*sheet_for_processing_list), end = ' ')
         #try: 
             header_row = tables_from_sheets_dict[(sheet_for_processing_list)]['Строка заголовка']
@@ -425,7 +450,7 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
                 column_names.append(column_name)
             identical_column_names = ', '.join(list(map(str,check_identical_column_names(column_names))))
             if identical_column_names:
-                sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3]).copy()
+                sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3])#.copy()
                 sheet_for_processing_list_cant_add.append('Колонки: ' + identical_column_names + ' встречаются более одного раза!')
                 sheets_for_processing_list_cant_add.append(sheet_for_processing_list_cant_add)
                 print(Fore.RED + ' - таблица не может быть обработана так как названия колонок ',
@@ -464,7 +489,11 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
 
 
     print(Fore.YELLOW + '', datetime.now(),'\t проверяем правильно ли всё записалось' + Fore.WHITE) 
-    sheets_for_processing_df = pd.DataFrame(sheets_for_processing_list, columns= ['Папка','Книга','Лист','Строк для сканирования','Колонко для сканирования'])[['Папка','Книга','Лист','Строк для сканирования']]
+    #print(sheets_for_processing_list)
+    #tables_size_list = [(sheet_for_processing_list[0],sheet_for_processing_list[1],sheet_for_processing_list[2],sheet_for_processing_list[3],sheet_for_processing_list[4],tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
+    sheets_for_processing_list =  [(*sheet_for_processing_list,tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
+    sheets_for_processing_df = pd.DataFrame(sheets_for_processing_list, columns = ['Папка','Книга','Лист','Строк для сканирования','Колонок для сканирования','Размер датафрейма (кБ)'])
+    #print(tables_size_df)
     total_table_df_info = total_table_df.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()   
     total_table_df_from_csv = pd.read_csv('RESULT.csv', sep ='\t')
     total_table_df_from_csv_info  = total_table_df_from_csv.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()
@@ -487,6 +516,7 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     compare_df['Строк для сканирования']                         = compare_df['Строк для сканирования'].apply(int) 
     compare_df['В итоговой таблице после удаления пустых строк'] = compare_df['В итоговой таблице после удаления пустых строк'].apply(int)
     compare_df['Загружено в CSV']                                = compare_df['Загружено в CSV'].apply(int)
+    compare_df.index.rename('№', inplace= True )
     print(compare_df)                                           
     compare_df.to_csv('.statistics.csv')
     print(Fore.YELLOW + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)   
@@ -511,20 +541,8 @@ def concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tabl
     if not total_table_df_info.equals(total_table_df_from_csv_info):
         messagebox.showerror(TITLE, 'Таблицы объеденены, но почему-то агрегированные значения в RESULT.csv не совпадают с агрегированными значениями в total_table_df!')
 
-
-    #total_table_df._append(table_df, ignore_index = True)
-    #total_table_df.to_csv('RESULT.csv', encoding = 'utf-8', sep='\t')   
-"""
-if __name__ == '__main__':
-    t = get_tables_from_sheets()
-    tables_from_sheets_list = get_headers(t)
-    #print(r)
-    concat_tables()
-"""
-#break
-#tabs = get_tables_from_sheets()
-#res = get_headers(tabs)
-#print('*'*100)
-#print('*'*100)
-#print('*'*100)
-#concat_tables(res)
+    fileName = os.path.join(os.getcwd(),'.statistics.xlsx')
+    xl = win32com.client.DispatchEx("Excel.Application")
+    wb = xl.Workbooks.Open(fileName)
+    xl.Visible = True
+    wb.RefreshAll()
