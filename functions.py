@@ -48,9 +48,9 @@ def get_sheets(show_sheets_button,get_headers_button):
     """
     Функция получает список листов во всех экселевских книгах в папке Исходники
     и загружает его в файл .sheets.csv
-    Затем функция открывает на рабочем столе файл .sheets.xlsm
+    Затем функция открывает на рабочем столе файл .sheets.xlsx
     """
-    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsm')):
+    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsx')):
         messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlms и повторите попытку!')
         return
     source_folder = os.walk('Исходники')
@@ -84,7 +84,7 @@ def get_sheets(show_sheets_button,get_headers_button):
                                             sheet.max_row,
                                             sheet.max_column])
                         print(Fore.GREEN + 
-                              'На листе: %s строк: %s колонок: %s'%(sheet.title,sheet.max_row,sheet.max_column) + Fore.WHITE)
+                              'На листе: %s Строк: %s Колонок: %s'%(sheet.title,sheet.max_row,sheet.max_column) + Fore.WHITE)
                     except:
                         print(Fore.RED + "Не удалось получить информацию о листе для\n" + folder,file,sheet + Fore.WHITE)
                         continue
@@ -105,17 +105,17 @@ def get_sheets(show_sheets_button,get_headers_button):
         writer = csv.writer(sheets_csv, delimiter='\t')
         writer.writerows(sheets_list)
 
-    #os.system('start excel.exe %s'%('.sheets.xlsm'))
+    #os.system('start excel.exe %s'%('.sheets.xlsx'))
     try:
         wb_get_sheets.RefreshAll()   
     except:
-        fileName = os.path.join(os.getcwd(),'.sheets.xlsm')
+        fileName = os.path.join(os.getcwd(),'.sheets.xlsx')
         xl_get_sheets = win32com.client.DispatchEx("Excel.Application")
         wb_get_sheets = xl_get_sheets.Workbooks.Open(fileName)
         xl_get_sheets.Visible = True
         wb_get_sheets.RefreshAll()
         wb_get_sheets.Save()
-        #wb_get_sheets.SaveAs(Filename=os.path.join(os.getcwd(),'.sheets.xlsm'))
+        #wb_get_sheets.SaveAs(Filename=os.path.join(os.getcwd(),'.sheets.xlsx'))
 
     if sheets_list != []:
         show_sheets_button.pack(anchor = CENTER, pady=(25,0))
@@ -129,11 +129,11 @@ if __name__ == '__main__':
 @proceed_type('"Открываем файл с листами в книгах"')
 def show_sheets():
     #print('dfg')
-    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsm')):
-        messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsm и повторите попытку!')
+    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsx')):
+        messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsx и повторите попытку!')
         return
     else:
-        fileName = os.path.join(os.getcwd(),'.sheets.xlsm')
+        fileName = os.path.join(os.getcwd(),'.sheets.xlsx')
         xl_show_sheets = win32com.client.DispatchEx("Excel.Application")
         xl_show_sheets.Workbooks.Open(fileName)
         xl_show_sheets.Visible = True   
@@ -145,7 +145,7 @@ def show_sheets():
 #wb = xl.Workbooks.Open(fileName)
 #xl.Visible = True
 
-#os.system('start excel.exe .sheets.xlsm')
+#os.system('start excel.exe .sheets.xlsx')
     
 """
 wb.RefreshAll()
@@ -163,7 +163,7 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
     #print('tables_from_sheets_dict_ДО\n',tables_from_sheets_dict.keys())
 
     # если поменялись отобранные листы, то проверяем какие таблицы нужно загрузить
-    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsm'), header = 0)
+    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list.clear()
     for row in sheets_for_processing_df.itertuples():
@@ -195,9 +195,18 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
                      ):
                     try:
                         table = pd.read_excel(os.path.join(folder,book), sheet_name = sheet, header = None,  nrows = rows_limit, usecols = range(columns_limit))#.iloc[:,:columns_limit]
-                    except:
-                        table = pd.read_excel(os.path.join(folder,book), sheet_name = sheet, header = None,  nrows = rows_limit)#.iloc[:,:columns_limit]    
-                    #print("b")
+                    except MemoryError:
+                        error_message = f'Папка: {folder}\nКнига: {book}\nЛист: {sheet}\nТАБЛИЦА СЛИШКОМ ВЕЛИКА И НЕ МОЖЕТ БЫТЬ ОБРАБОТАНА!!!\nПопробуйте ограничить количество строк и/или колонок, которые нужны из этой таблицы!'
+                        print(Fore.RED + ' - ТАБЛИЦА СЛИШКОМ ВЕЛИКА И НЕ МОЖЕТ БЫТЬ ОБРАБОТАНА!!! Попробуйте ограничить количество строк и/или колонок, которые нужны из этой таблицы!' + Fore.WHITE)
+                        messagebox.showerror(TITLE,error_message.replace('\\n',''))
+                        return False
+                    except pd.errors.ParserError:
+                            table = pd.read_excel(os.path.join(folder,book), sheet_name = sheet, header = None,  nrows = rows_limit)#.iloc[:,:columns_limit]    
+                    except Exception as e:
+                        error_message = f'Папка: {folder}\nКнига: {book}\nЛист: {sheet}\nПРОИЗОШЛО ЧТО-ТО НЕПРЕДВИДЕННОЕ (код ошибки {e})!!!\nОбратитесь к разработчикам!'
+                        print(Fore.RED + error_message)
+                        messagebox.showerror(TITLE,error_message.replace('\\n',''))
+                        return False
                     table.insert(0, 'Папка' , folder)
                     table.insert(1, 'Книга' , book) 
                     table.insert(2, 'Лист'  , sheet)
@@ -216,6 +225,7 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
         #print(Fore.RED, tables_from_sheets_dict, Fore.WHITE)
 
         sheets_for_processing_df.to_csv(os.path.join(os.getcwd(),'.selected_sheets.csv'),sep='\t',index= False)
+    return True
    # print('tables_from_sheets_dict_ПОСЛЕ\n',tables_from_sheets_dict.keys())
 
 
@@ -235,19 +245,15 @@ def get_exceptions():
 def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
 
     exceptions_list = get_exceptions()
-    get_tables_from_sheets(tables_from_sheets_dict,sheets_for_processing_list)
+    if not get_tables_from_sheets(tables_from_sheets_dict,sheets_for_processing_list):
+        return False
     headers_specifications_df = pd.read_excel('.headers.xlsx', sheet_name = 'Settings')  #print(headers_specifications_df)  
 
     all_tables_headers_df = pd.DataFrame()
     table_with_not_located_headers = pd.DataFrame()
     
     for sheet_for_processing_list in sheets_for_processing_list:
-        #print(headers_specifications_df)
         print(Fore.WHITE + "Папка: {} Книга: {} Лист: {}".format(*sheet_for_processing_list), end = ' ')
-        #print("table_dict['Таблица']\n",table_dict['Таблица'])
-        #print('*'*50)
-        #break
-        #input('aaaa')
         table_headers_df = pd.DataFrame()
         
         for specification in headers_specifications_df.iterrows():
@@ -302,18 +308,8 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
         table_with_not_located_headers.to_csv('.table_with_not_located_headers.csv', sep = '\t', index= False)   
         all_tables_headers_df = all_tables_headers_df._append(table_headers_df, ignore_index = True)
         
-        #print('aaaaaaaaa', int(column_number),sep='\n')                
-        #print('bbbbbbbbb',header_df,sep='\n')
-        #print('ccccccccc',all_tables_headers_df.fillna(''),sep='\n')
- 
-        #print('-'*50,'\n'*2)
-    #result = True if len(table_with_not_located_headers) == 0 else False
-    #print(all_tables_headers_df)
     all_tables_headers_df.to_csv('.headers.csv', sep = '\t', index= False)
-    #concat_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = concat_tables)
-    #concat_button.pack(anchor = CENTER, pady = (25,0))
-    #print(tables_from_sheets_dict)
-
+    return True
 
 
 
@@ -378,7 +374,9 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_t
         messagebox.showerror(TITLE,'Закройте таблицу .headers.xlsx и повторите попытку!')
         return
     concat_tables_button.pack_forget()
-    get_headers(tables_from_sheets_dict, sheets_for_processing_list)
+    
+    if not get_headers(tables_from_sheets_dict, sheets_for_processing_list):
+        return
 
 
     fileName = os.path.join(os.getcwd(),'.headers.xlsx')
@@ -406,7 +404,7 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
     if os.path.exists(os.path.join(os.getcwd(),'~$.statistics.xlsx')):
         messagebox.showerror(TITLE,'Закройте таблицу .statistics.xlsx и повторите попытку!')
         return
-    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsm'), header = 0)
+    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list_actual = []
     sheets_for_processing_list_cant_add = []
