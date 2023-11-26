@@ -41,20 +41,56 @@ def start_finish_time(func):
         return value
     return wrapper
 
+def get_book_info(folder,file,sheets_df,sheets_list):
+    sheet_info_df = sheets_df[(sheets_df['Папка'] == folder) &
+                            (sheets_df['Книга']  == file) &
+                            (sheets_df['Последнее обновление исходника'] == os.path.getmtime(os.path.join(os.getcwd(),folder,file)))]
+    
+    #print(Fore.GREEN + '', folder, file,os.path.getmtime(os.path.join(os.getcwd(),folder,file)) ) 
+    #print(Fore.RED +'', sheets_df)  
+    #print(Fore.CYAN + '', sheet_info_df)
+    if len(sheet_info_df)>0:
+        for row in sheet_info_df.itertuples():
+            sheets_list.append(list(row)[1:]) 
+            print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')
+            print(Fore.GREEN + f' Лист: {row[3]} уже был просмотрен' + Fore.WHITE)
+    else:
+        wb = openpyxl.load_workbook(os.path.join(folder,file))
+        sheets = wb.worksheets   
+        for sheet in sheets:                     
+            sheets_list.append([folder,
+                                file,
+                                sheet.title,
+                                sheet.max_row,
+                                sheet.max_column,
+                                'ДА - если нужно обработать',
+                                sheet.max_row,
+                                sheet.max_column,
+                                os.path.getmtime(os.path.join(os.getcwd(),folder,file))
+                                ])
+            print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')                                
+            print(Fore.GREEN + f'- Лист: {sheet.title} Строк: {sheet.max_row} Колонок: {sheet.max_column}' + Fore.WHITE)
+
 
 @start_finish_time
 @proceed_type('"Сканирование листов в книгах"')
-def get_sheets(show_sheets_button,get_headers_button):
+def get_sheets(get_headers_button):
     """
     Функция получает список листов во всех экселевских книгах в папке Исходники
     и загружает его в файл .sheets.csv
     Затем функция открывает на рабочем столе файл .sheets.xlsx
     """
     if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsx')):
-        messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlms и повторите попытку!')
+        messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsx и повторите попытку!')
         return
+
     source_folder = os.walk('Исходники')
     sheets_list = []
+    if os.path.exists('.sheets.csv'):   
+        sheets_df = pd.read_csv('.sheets.csv', sep ='\t')
+    else:
+        sheets_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
+
     for i in source_folder:
         folder =i[0]
         files = i[2]
@@ -62,32 +98,7 @@ def get_sheets(show_sheets_button,get_headers_button):
             if '~' in file:
                 continue
             elif file[-5:] in ['.xlsx','.xlsm']:
-                print(Fore.WHITE + 'Папка: %s Книга: %s:'%(folder,file))
-                xl_path = os.path.join(folder,file)
-                try:
-                    #print("a")
-                    wb = openpyxl.load_workbook(os.path.join(folder,file))
-                    sheets = wb.worksheets
-                    #print("b")
-                except:
-                    print(Fore.RED + "Не удалось получить список листов для:\n" + folder,file + Fore.WHITE)
-                    continue
-                for sheet in sheets:
-                    try:
-                        #print("c")
-                        sheets_list.append([folder,
-                                            file,
-                                            sheet.title,
-                                            sheet.max_row,
-                                            sheet.max_column,
-                                            'ДА',
-                                            sheet.max_row,
-                                            sheet.max_column])
-                        print(Fore.GREEN + 
-                              'На листе: %s Строк: %s Колонок: %s'%(sheet.title,sheet.max_row,sheet.max_column) + Fore.WHITE)
-                    except:
-                        print(Fore.RED + "Не удалось получить информацию о листе для\n" + folder,file,sheet + Fore.WHITE)
-                        continue
+                get_book_info(folder,file,sheets_df,sheets_list)
  
     with open('.sheets.csv', 'w', newline='', encoding='utf-8') as sheets_csv:
         writer = csv.writer(sheets_csv, delimiter='\t')
@@ -98,7 +109,8 @@ def get_sheets(show_sheets_button,get_headers_button):
                          'Столбцов на листе',
                          'Добавить',
                          'Сколько строк нужно',
-                         'Сколько колонок нужно'
+                         'Сколько колонок нужно',
+                         'Последнее обновление исходника'
                          ])                
 
     with open('.sheets.csv', 'a', newline='', encoding='utf-8') as sheets_csv:
@@ -106,19 +118,16 @@ def get_sheets(show_sheets_button,get_headers_button):
         writer.writerows(sheets_list)
 
     #os.system('start excel.exe %s'%('.sheets.xlsx'))
-    try:
-        wb_get_sheets.RefreshAll()   
-    except:
-        fileName = os.path.join(os.getcwd(),'.sheets.xlsx')
-        xl_get_sheets = win32com.client.DispatchEx("Excel.Application")
-        wb_get_sheets = xl_get_sheets.Workbooks.Open(fileName)
-        xl_get_sheets.Visible = True
-        wb_get_sheets.RefreshAll()
-        wb_get_sheets.Save()
-        #wb_get_sheets.SaveAs(Filename=os.path.join(os.getcwd(),'.sheets.xlsx'))
+
+    fileName = os.path.join(os.getcwd(),'.sheets.xlsx')
+    xl_get_sheets = win32com.client.DispatchEx("Excel.Application")
+    wb_get_sheets = xl_get_sheets.Workbooks.Open(fileName)
+    xl_get_sheets.Visible = True
+    wb_get_sheets.RefreshAll()
+    wb_get_sheets.Save()
+    #wb_get_sheets.SaveAs(Filename=os.path.join(os.getcwd(),'.sheets.xlsx'))
 
     if sheets_list != []:
-        show_sheets_button.pack(anchor = CENTER, pady=(25,0))
         get_headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
 
 """
