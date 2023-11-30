@@ -41,36 +41,75 @@ def start_finish_time(func):
         return value
     return wrapper
 
-def get_book_info(folder,file,sheets_df,sheets_list):
-    sheet_info_df = sheets_df[(sheets_df['Папка'] == folder) &
-                            (sheets_df['Книга']  == file) &
-                            (sheets_df['Последнее обновление исходника'] == os.path.getmtime(os.path.join(os.getcwd(),folder,file)))]
+def get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list):
     
-    #print(Fore.GREEN + '', folder, file,os.path.getmtime(os.path.join(os.getcwd(),folder,file)) ) 
-    #print(Fore.RED +'', sheets_df)  
-    #print(Fore.CYAN + '', sheet_info_df)
-    if len(sheet_info_df)>0:
-        for row in sheet_info_df.itertuples():
-            sheets_list.append(list(row)[1:]) 
-            print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')
-            print(Fore.GREEN + f' Лист: {row[3]} уже был просмотрен' + Fore.WHITE)
-    else:
+    file_in_csv_info_df = sheets_in_csv_df[(sheets_in_csv_df['Папка'] == folder) &
+                                            (sheets_in_csv_df['Книга']  == file)]#  &
+        
+    if  ((len(file_in_csv_info_df) > 0 and file_in_csv_info_df['Последнее обновление исходника'].iloc[0] != int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))) or 
+         len(file_in_csv_info_df) == 0):
+
         wb = openpyxl.load_workbook(os.path.join(folder,file))
         sheets = wb.worksheets   
-        for sheet in sheets:                     
-            sheets_list.append([folder,
-                                file,
-                                sheet.title,
-                                sheet.max_row,
-                                sheet.max_column,
-                                'ДА - если нужно обработать',
-                                sheet.max_row,
-                                sheet.max_column,
-                                os.path.getmtime(os.path.join(os.getcwd(),folder,file))
-                                ])
+        for sheet in sheets: 
+            sheet_in_xlsx_info_df = sheets_in_xlsx_df[(sheets_in_xlsx_df['Папка'] == folder) &
+                                            (sheets_in_xlsx_df['Книга'] == file)  & 
+                                            (sheets_in_xlsx_df['Лист']  == sheet.title)]
+            #print(Fore.MAGENTA + '\n', folder, file, sheet, sep = '\n')
+            #print(Fore.RED + '', sheet_in_xlsx_info_df)
+            if  len(sheet_in_xlsx_info_df ) > 0 :
+                sheets_list.append([folder,
+                                    file,
+                                    sheet.title,
+                                    sheet.max_row,
+                                    sheet.max_column,
+                                    sheet_in_xlsx_info_df['Добавить'].iloc[0],
+                                    sheet_in_xlsx_info_df['Сколько строк нужно'].iloc[0],
+                                    sheet_in_xlsx_info_df['Сколько колонок нужно'].iloc[0],
+                                    int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))
+                                    ])
+            else:    
+                sheets_list.append([folder,
+                                    file,
+                                    sheet.title,
+                                    sheet.max_row,
+                                    sheet.max_column,
+                                    'ДА - если нужно обработать',
+                                    sheet.max_row,
+                                    sheet.max_column,
+                                    int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))
+                                    ])
             print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')                                
             print(Fore.GREEN + f'- Лист: {sheet.title} Строк: {sheet.max_row} Колонок: {sheet.max_column}' + Fore.WHITE)
-
+    
+    else:
+        for sheet in file_in_csv_info_df.itertuples():
+            sheet_in_xlsx_info_df = sheets_in_xlsx_df[(sheets_in_xlsx_df['Папка'] == folder) &
+                                (sheets_in_xlsx_df['Книга'] == file)  & 
+                                (sheets_in_xlsx_df['Лист']  == sheet[3])]
+            #print(sheet)
+            #print(sheets_in_xlsx_df)
+            #print(folder,file,sheet[3])
+            #print(sheet_in_xlsx_info_df)
+            #print(sheet_in_xlsx_info_df['Строк на листе'])
+            sheets_list.append([folder,
+                    file,
+                    sheet[3],
+                    sheet_in_xlsx_info_df['Строк на листе'].iloc[0],
+                    sheet_in_xlsx_info_df['Столбцов на листе'].iloc[0],
+                    sheet_in_xlsx_info_df['Добавить'].iloc[0],
+                    sheet_in_xlsx_info_df['Сколько строк нужно'].iloc[0],
+                    sheet_in_xlsx_info_df['Сколько колонок нужно'].iloc[0],
+                    int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))
+                    ])
+            print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')                                
+            print(Fore.GREEN + f'- Лист: {sheet[3]} уже был загружен' + Fore.WHITE)
+    
+    #print(Fore.GREEN + '', folder, file,os.path.getmtime(os.path.join(os.getcwd(),folder,file)) ) 
+    #print(Fore.GREEN + '', folder, sheet_in_csv_info_df['Последнее обновление исходника'].iloc[0] )     
+    #print(Fore.RED +'', sheets_in_csv_df)  
+    #print(Fore.CYAN + '', sheet_in_csv_info_df)
+    #print(Fore.CYAN + '', sheet_info_df.columns)    
 
 @start_finish_time
 @proceed_type('"Сканирование листов в книгах"')
@@ -87,9 +126,12 @@ def get_sheets(get_headers_button):
     source_folder = os.walk('Исходники')
     sheets_list = []
     if os.path.exists('.sheets.csv'):   
-        sheets_df = pd.read_csv('.sheets.csv', sep ='\t')
+        sheets_in_csv_df = pd.read_csv('.sheets.csv', sep ='\t')
     else:
-        sheets_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
+        sheets_in_csv_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
+    sheets_in_xlsx_df = pd.read_excel('.sheets.xlsx', header = 0)
+    #print(sheets_in_xlsx_df)
+
 
     for i in source_folder:
         folder =i[0]
@@ -98,7 +140,7 @@ def get_sheets(get_headers_button):
             if '~' in file:
                 continue
             elif file[-5:] in ['.xlsx','.xlsm']:
-                get_book_info(folder,file,sheets_df,sheets_list)
+                get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list)
  
     with open('.sheets.csv', 'w', newline='', encoding='utf-8') as sheets_csv:
         writer = csv.writer(sheets_csv, delimiter='\t')
@@ -113,9 +155,12 @@ def get_sheets(get_headers_button):
                          'Последнее обновление исходника'
                          ])                
 
-    with open('.sheets.csv', 'a', newline='', encoding='utf-8') as sheets_csv:
-        writer = csv.writer(sheets_csv, delimiter='\t')
-        writer.writerows(sheets_list)
+    #print(Fore.RED +'', sheets_list, Fore.WHITE + '' )
+    sheets_csv_df = pd.DataFrame(sheets_list, columns =['Папка','Книга','Лист','Строк на листе','Столбцов на листе','Добавить','Сколько строк нужно','Сколько колонок нужно','Последнее обновление исходника'])
+    #print(Fore.MAGENTA +'', sheets_csv_df.columns)
+    #sheets_csv_df.fillna('', how = 'all')
+    
+    sheets_csv_df.to_csv('.sheets.csv', index= False, encoding='utf-8', sep='\t')
 
     #os.system('start excel.exe %s'%('.sheets.xlsx'))
 
@@ -146,25 +191,6 @@ def show_sheets():
         xl_show_sheets = win32com.client.DispatchEx("Excel.Application")
         xl_show_sheets.Workbooks.Open(fileName)
         xl_show_sheets.Visible = True   
-
-
-#print(fileName)
-
-##xl = win32com.client.DispatchEx("Excel.Application")
-#wb = xl.Workbooks.Open(fileName)
-#xl.Visible = True
-
-#os.system('start excel.exe .sheets.xlsx')
-    
-"""
-wb.RefreshAll()
-wb.Close(True)
-xl.Quit()
-os.system("taskkill /f /im excel.exe")
-"""
-
-#open_sheets_and_settings()  
-
 
 @start_finish_time
 @proceed_type('"Создание списка таблиц"')
@@ -200,7 +226,7 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
                 print(Fore.WHITE + f'Книга: {folder} Папка: {book} Лист: {sheet}', end =' ')
                 # Таблицу загружаем только если ранее на загружали или если файл изменился
                 if  (((folder,book,sheet,rows_limit,columns_limit) not in tables_from_sheets_dict) or 
-                     (((folder,book,sheet,rows_limit,columns_limit) in tables_from_sheets_dict) and tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]['Последнее обновление исходника'] != os.path.getmtime(os.path.join(os.getcwd(),folder,book)))
+                     (((folder,book,sheet,rows_limit,columns_limit) in tables_from_sheets_dict) and tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]['Последнее обновление исходника'] != int(os.path.getmtime(os.path.join(os.getcwd(),folder,book))))
                      ):
                     try:
                         table = pd.read_excel(os.path.join(folder,book), sheet_name = sheet, header = None,  nrows = rows_limit, usecols = range(columns_limit))#.iloc[:,:columns_limit]
@@ -223,7 +249,7 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
                     tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]={'Таблица': table,
                                                                                            'Превью': table.iloc[:30,:30],
                                                                                            'Размер датафрейма (кБ)': round(table.memory_usage(deep=True).sum()/1024,2),
-                                                                                           'Последнее обновление исходника':os.path.getmtime(os.path.join(os.getcwd(),folder,book))}
+                                                                                           'Последнее обновление исходника':int(os.path.getmtime(os.path.join(os.getcwd(),folder,book)))}
                     table_size = tables_from_sheets_dict[(folder,book,sheet,rows_limit,columns_limit)]['Размер датафрейма (кБ)']
                     print(Fore.GREEN + f' - загрузили из экселя ({table_size:,}кБ)')
                 else:
@@ -238,13 +264,6 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
    # print('tables_from_sheets_dict_ПОСЛЕ\n',tables_from_sheets_dict.keys())
 
 
-#t = get_tables_from_sheets()
-#print(t)
-
-
-
-#@start_finish_time
-#@proceed_type('"Создаём список исключений"')
 def get_exceptions():
     exceptions_df = pd.read_excel('.headers.xlsx', sheet_name='Exceptions')
     return [list(i[1:]) for i in exceptions_df.itertuples()]
@@ -320,7 +339,40 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
     all_tables_headers_df.to_csv('.headers.csv', sep = '\t', index= False)
     return True
 
+@start_finish_time
+@proceed_type('"Проверка, что книги в папке "Исходники" не добавлялись, не удалалялись, не менялись"')
+def check_books (get_headers_button,concat_tables_button):
+    source_folder = os.walk('Исходники')
+    sheets_list = []
+    if os.path.exists('.sheets.csv'):   
+        sheets_in_csv_df = pd.read_csv('.sheets.csv', sep ='\t')[['Папка', 'Книга','Последнее обновление исходника']]
+    else:
+        sheets_in_csv_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
+    sheets_in_csv_df.drop_duplicates( subset = ['Папка','Книга','Последнее обновление исходника'], inplace= True) 
+    sheets_in_csv_df['Последнее обновление исходника'] = sheets_in_csv_df['Последнее обновление исходника'].apply(int)
+    #print(Fore.MAGENTA + '',sheets_in_csv_df)
+    for i in source_folder:
+        folder =i[0]
+        files = i[2]
+        for file in files:
+            if '~' in file:
+                continue
+            elif file[-5:] in ['.xlsx','.xlsm']:
+                sheets_list.append({'Папка':folder,'Книга':file,'Последнее обновление исходника':int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))})
 
+    sheets_df = pd.DataFrame(sheets_list)
+    #sheets_df['Есть в Исходники'] = True
+    
+    compare_df = pd.concat([sheets_in_csv_df,sheets_df])
+    #print(Fore.CYAN + '', compare_df , Fore.WHITE)
+    compare_df = compare_df.drop_duplicates()
+    if len(compare_df) != len(sheets_in_csv_df) or len(compare_df) != len(sheets_df):
+        messagebox.showwarning(TITLE,'Книги в папке "Исходники" были добавлены или удалены или измененены.\nПросмотрите листы, чтобы обновить информацию!')
+        get_headers_button.pack_forget()
+        concat_tables_button.pack_forget()
+        return False
+    else:
+        return True
 
 #@start_finish_time
 #@proceed_type('"Проверка на наличие случаев, когда для одной таблицы найдено несколько заголовков"')
@@ -382,6 +434,14 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_t
     if os.path.exists(os.path.join(os.getcwd(),'~$.headers.xlsx')):
         messagebox.showerror(TITLE,'Закройте таблицу .headers.xlsx и повторите попытку!')
         return
+    """
+    if len(sheets_for_processing_df) != len(sheets_for_processing_df [(sheets_for_processing_df ['Добавить'] == 'ДА') | (sheets_for_processing_df ['Добавить'] =='')]):
+        get_headers_button.pack_forget()
+        concat_tables_button.pack_forget()
+        messagebox.showwarning(TITLE, 'Для некоторых листов непринято решение нужно ли их добавлять или нет в итоговую таблцы.\nКолонка "Добавить" должна быть пустой или иметь значение "ДА"')
+        return
+    """
+
     concat_tables_button.pack_forget()
     
     if not get_headers(tables_from_sheets_dict, sheets_for_processing_list):
@@ -409,11 +469,16 @@ while True:
 
 @start_finish_time
 @proceed_type('"Объединение таблиц"')
-def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_tables_button):
+def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, get_headers_button, concat_tables_button):
     if os.path.exists(os.path.join(os.getcwd(),'~$.statistics.xlsx')):
         messagebox.showerror(TITLE,'Закройте таблицу .statistics.xlsx и повторите попытку!')
         return
+    # Проверяем не менялись ли исходники
+    if not check_books (get_headers_button,concat_tables_button): return
+    
+    # Проверяем не менялся ли список листов которые нужно собрать
     sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
+    sheets_for_processing_df.fillna('', inplace=True)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list_actual = []
     sheets_for_processing_list_cant_add = []
@@ -424,14 +489,9 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
         concat_tables_button.pack_forget()
         messagebox.showwarning(TITLE, "Изменился список листов, таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!")   
         return
-    print(sheets_for_processing_list_actual)
-    # Проверяем не менялись ли исходники
-    for sheet_for_processing_list_actual in sheets_for_processing_list_actual:
-        #print(sheet_for_processing_list_actual)
-        if tables_from_sheets_dict[sheet_for_processing_list_actual]['Последнее обновление исходника'] != os.path.getmtime(os.path.join(os.getcwd(),sheet_for_processing_list_actual[0],sheet_for_processing_list_actual[1])):
-            concat_tables_button.pack_forget()
-            messagebox.showwarning(TITLE, "Некоторые исходные файлы были изменены.\nТребуется пересобрать заголовки!")   
-            return
+
+    
+
     
     if not check_no_header():
         return
@@ -524,7 +584,7 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
     compare_df['В итоговой таблице после удаления пустых строк'] = compare_df['В итоговой таблице после удаления пустых строк'].apply(int)
     compare_df['Загружено в CSV']                                = compare_df['Загружено в CSV'].apply(int)
     compare_df.index.rename('№', inplace= True )
-    print(compare_df)                                           
+    #print(compare_df)                                           
     compare_df.to_csv('.statistics.csv')
     print(Fore.YELLOW + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)   
     

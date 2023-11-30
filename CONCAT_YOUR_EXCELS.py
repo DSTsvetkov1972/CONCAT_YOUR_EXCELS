@@ -27,6 +27,7 @@ root = Tk()
 
 root.title(TITLE)
 root.geometry("330x250")
+root.resizable(height=False, width=False)
 
 #reload_button = ttk.Button(root, text ="Отладчик", width = 30, command = lambda:reload(fn))
 #reload_button.pack(anchor = CENTER, pady=(25,0))
@@ -42,9 +43,7 @@ get_headers_button = ttk.Button(root, text ="Найти заголовки", wid
 if os.path.exists(os.path.join(os.getcwd(),'.sheets.csv')):
       get_headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
 
-fn.get_sheets(get_headers_button)
-
-concat_tables_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = lambda:fn.concat_tables(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button))
+concat_tables_button = ttk.Button(root, text ="Объединить таблицы", width = 30, command = lambda:fn.concat_tables(tables_from_sheets_dict,sheets_for_processing_list,get_headers_button,concat_tables_button))
 
 mainmenu = Menu(root)
 root.config(menu=mainmenu)
