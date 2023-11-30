@@ -3,27 +3,122 @@ import numpy as np
 import openpyxl
 import os 
 import csv
-import time
 import win32com.client
 from tkinter import *
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 import tkinter as tk
 from datetime import datetime
 from colorama import init, Fore, Back, Style
+from service_functions import *
 
 import warnings
 warnings.filterwarnings('ignore')
 
-VERSION = 2
-TITLE = "CONCAT_YOUR_EXCELS v/%s"%(VERSION)
-developers_message = """
-    Приложение работает не так как ожидалось?
-    Есть идеи что добавить или улучшить?
-    Хотите угостить разработчиков кофе?
-    Всегда рады будем с Вами пообщаться!
-    Пишите нам на электронку:
-    TsvetkovDS@trcont.ru
-"""
+
+def check_files_isnt_open (TITLE):
+    for file in ['.sheets.xlsx','.headers.xlsx','.statistics.xlsx']:
+        if os.path.exists(os.path.join(os.getcwd(),'~$' + file)):
+            messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsx и повторите попытку!')
+            return  False
+    return True
+
+def check_books ():
+    """
+    Проверяем не были ли изменения в файлах в папке Исходники
+    """
+    source_folder = os.walk('Исходники')
+    sheets_list = []
+    if os.path.exists('.sheets.csv'):   
+        sheets_in_csv_df = pd.read_csv('.sheets.csv', sep ='\t')[['Папка', 'Книга','Последнее обновление исходника']]
+    else:
+        sheets_in_csv_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
+    sheets_in_csv_df.drop_duplicates( subset = ['Папка','Книга','Последнее обновление исходника'], inplace= True) 
+    sheets_in_csv_df['Последнее обновление исходника'] = sheets_in_csv_df['Последнее обновление исходника'].apply(int)
+    #print(Fore.MAGENTA + '',sheets_in_csv_df)
+    for i in source_folder:
+        folder =i[0]
+        files = i[2]
+        for file in files:
+            if '~' in file:
+                continue
+            elif file[-5:] in ['.xlsx','.xlsm']:
+                sheets_list.append({'Папка':folder,'Книга':file,'Последнее обновление исходника':int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))})
+
+    sheets_df = pd.DataFrame(sheets_list)
+    #sheets_df['Есть в Исходники'] = True
+    
+    compare_df = pd.concat([sheets_in_csv_df,sheets_df])
+    #print(Fore.CYAN + '', compare_df , Fore.WHITE)
+    compare_df = compare_df.drop_duplicates()
+    if len(compare_df) != len(sheets_in_csv_df) or len(compare_df) != len(sheets_df):
+        messagebox.showwarning(TITLE,'Книги в папке "Исходники" были добавлены или удалены или измененены.\nПросмотрите листы, чтобы обновить информацию!')
+        #get_headers_button.pack_forget()
+        #concat_tables_button.pack_forget()
+        get_sheets()
+        return False
+    else:
+        return True
+
+def check_multiple_headers():
+    try:
+        headers_df = pd.read_csv('.headers.csv', sep ='\t')
+    except pd.errors.EmptyDataError:
+        print(Fore.RED + 'Обработка невозможна! Вероятно отсутствуют книги или листы для которых требуется собрать информацию?' + Fore.WHITE)
+        return
+    headers_df_gropby = headers_df.groupby(['Папка','Книга','Лист']).count().reset_index()
+    headers_df_gropby = headers_df_gropby.rename(columns = {'Найден по колонке':'Повторов'})
+    headers_df_gropby = headers_df_gropby[headers_df_gropby['Повторов'] > 1]
+    headers_df_gropby = headers_df_gropby[['Папка','Книга','Лист']]
+    multiple_headers_df = headers_df_gropby.merge(headers_df,
+                                                   how='inner',
+                                                   on = ['Папка','Книга','Лист'] )
+    multiple_headers_df.to_csv('.multiple_headers.csv', sep = '\t', index=None)
+    if len(multiple_headers_df) == 0:
+        print(Fore.GREEN + 'Случаи когда в одной таблице обнаружены несколько заголовков отсутствуют!' + Fore.WHITE)
+        return True
+    else:
+        print(Fore.RED + 'Есть случаи когда в одной таблице обнаружены несколько заголовков!\nДобавьте неправильные закголвки в таблицу на листе Exceptions!' + Fore.WHITE)
+        return False
+
+def check_no_header(): 
+    """
+    Возвращает истину если нет таблиц с необнаружеными заголовками
+    """   
+    try: 
+        pd.read_csv('.table_with_not_located_headers.csv', sep = '\t')
+        print(Fore.RED + 'Есть таблицы для которых не найдены заголовки!' + Fore.WHITE)
+        return False
+    except pd.errors.EmptyDataError:
+        print(Fore.GREEN + 'Заголовки найдены для всех таблиц!' + Fore.WHITE)        
+        return True
+
+def check_identical_column_names(list_to_check):
+    list_to_check = list_to_check
+    identical_column_names_list = []
+    while list_to_check:
+        i = list_to_check[0]
+        list_to_check = list_to_check[1:]
+        if i in list_to_check and i not in identical_column_names_list:
+            identical_column_names_list.append(i)
+    return identical_column_names_list
+
+def check_unmade_decisions():
+    df = pd.read_excel('.sheets.xlsx')
+    df = df.fillna('',inplace = False)
+    #print(df)
+    #print(df[(df['Добавить'] == '')])
+    #print(df[df['Добавить'] == 'ДА'])
+    #print(df[(df['Добавить'] == '') | (df['Добавить'] == 'ДА')])
+    #print(len(df[(df['Добавить'] == '') | (df['Добавить'] == 'ДА')]) == len(df))
+    if len(df[(df['Добавить'] == '') | (df['Добавить'] == 'ДА')]) != len(df):
+        messagebox.showwarning(TITLE,'Для некоторых листов не принято решение нужно ли их добавлять в итоговую таблицу!\nВведите в колонку "Добавить" значение "ДА" для листов которые нужно добавлять, для остальных - пустое значение!')
+        get_sheets()
+        return False
+    else:
+        return True
+    
+
+
 
 def proceed_type(proceed_type):
     def wrapper(func):
@@ -103,7 +198,7 @@ def get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list):
                     int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))
                     ])
             print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')                                
-            print(Fore.GREEN + f'- Лист: {sheet[3]} уже был загружен' + Fore.WHITE)
+            print(Fore.GREEN + f'- Лист: {sheet[3]} параметры уже были получены' + Fore.WHITE)
     
     #print(Fore.GREEN + '', folder, file,os.path.getmtime(os.path.join(os.getcwd(),folder,file)) ) 
     #print(Fore.GREEN + '', folder, sheet_in_csv_info_df['Последнее обновление исходника'].iloc[0] )     
@@ -113,12 +208,14 @@ def get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list):
 
 @start_finish_time
 @proceed_type('"Сканирование листов в книгах"')
-def get_sheets(get_headers_button):
+def get_sheets():
     """
     Функция получает список листов во всех экселевских книгах в папке Исходники
     и загружает его в файл .sheets.csv
     Затем функция открывает на рабочем столе файл .sheets.xlsx
     """
+    if not check_files_isnt_open(TITLE): return 
+
     if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsx')):
         messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsx и повторите попытку!')
         return
@@ -173,12 +270,13 @@ def get_sheets(get_headers_button):
     #wb_get_sheets.SaveAs(Filename=os.path.join(os.getcwd(),'.sheets.xlsx'))
 
     if sheets_list != []:
-        get_headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
+        pass
+        #get_headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
 
 """
 if __name__ == '__main__':   
     get_sheets()
-"""
+
 @start_finish_time
 @proceed_type('"Открываем файл с листами в книгах"')
 def show_sheets():
@@ -191,6 +289,7 @@ def show_sheets():
         xl_show_sheets = win32com.client.DispatchEx("Excel.Application")
         xl_show_sheets.Workbooks.Open(fileName)
         xl_show_sheets.Visible = True   
+"""
 
 @start_finish_time
 @proceed_type('"Создание списка таблиц"')
@@ -339,95 +438,11 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
     all_tables_headers_df.to_csv('.headers.csv', sep = '\t', index= False)
     return True
 
-@start_finish_time
-@proceed_type('"Проверка, что книги в папке "Исходники" не добавлялись, не удалалялись, не менялись"')
-def check_books (get_headers_button,concat_tables_button):
-    source_folder = os.walk('Исходники')
-    sheets_list = []
-    if os.path.exists('.sheets.csv'):   
-        sheets_in_csv_df = pd.read_csv('.sheets.csv', sep ='\t')[['Папка', 'Книга','Последнее обновление исходника']]
-    else:
-        sheets_in_csv_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
-    sheets_in_csv_df.drop_duplicates( subset = ['Папка','Книга','Последнее обновление исходника'], inplace= True) 
-    sheets_in_csv_df['Последнее обновление исходника'] = sheets_in_csv_df['Последнее обновление исходника'].apply(int)
-    #print(Fore.MAGENTA + '',sheets_in_csv_df)
-    for i in source_folder:
-        folder =i[0]
-        files = i[2]
-        for file in files:
-            if '~' in file:
-                continue
-            elif file[-5:] in ['.xlsx','.xlsm']:
-                sheets_list.append({'Папка':folder,'Книга':file,'Последнее обновление исходника':int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))})
 
-    sheets_df = pd.DataFrame(sheets_list)
-    #sheets_df['Есть в Исходники'] = True
-    
-    compare_df = pd.concat([sheets_in_csv_df,sheets_df])
-    #print(Fore.CYAN + '', compare_df , Fore.WHITE)
-    compare_df = compare_df.drop_duplicates()
-    if len(compare_df) != len(sheets_in_csv_df) or len(compare_df) != len(sheets_df):
-        messagebox.showwarning(TITLE,'Книги в папке "Исходники" были добавлены или удалены или измененены.\nПросмотрите листы, чтобы обновить информацию!')
-        get_headers_button.pack_forget()
-        concat_tables_button.pack_forget()
-        return False
-    else:
-        return True
-
-#@start_finish_time
-#@proceed_type('"Проверка на наличие случаев, когда для одной таблицы найдено несколько заголовков"')
-def check_multiple_headers():
-    try:
-        headers_df = pd.read_csv('.headers.csv', sep ='\t')
-    except pd.errors.EmptyDataError:
-        print(Fore.RED + 'Обработка невозможна! Вероятно отсутствуют книги или листы для которых требуется собрать информацию?' + Fore.WHITE)
-        return
-    headers_df_gropby = headers_df.groupby(['Папка','Книга','Лист']).count().reset_index()
-    headers_df_gropby = headers_df_gropby.rename(columns = {'Найден по колонке':'Повторов'})
-    headers_df_gropby = headers_df_gropby[headers_df_gropby['Повторов'] > 1]
-    headers_df_gropby = headers_df_gropby[['Папка','Книга','Лист']]
-    multiple_headers_df = headers_df_gropby.merge(headers_df,
-                                                   how='inner',
-                                                   on = ['Папка','Книга','Лист'] )
-    multiple_headers_df.to_csv('.multiple_headers.csv', sep = '\t', index=None)
-    if len(multiple_headers_df) == 0:
-        print(Fore.GREEN + 'Случаи когда в одной таблице обнаружены несколько заголовков отсутствуют!' + Fore.WHITE)
-        return True
-    else:
-        print(Fore.RED + 'Есть случаи когда в одной таблице обнаружены несколько заголовков!\nДобавьте неправильные закголвки в таблицу на листе Exceptions!' + Fore.WHITE)
-        return False
-
-#if __name__ == '__main__':
-#    print(check_multiple_headers())
-
-#@start_finish_time
-#@proceed_type('"Проверка на наличие случаев, когда для таблицы не найдено ни одного заголовка"')
-def check_no_header(): 
-    """
-    Возвращает истину если нет таблиц с необнаружеными заголовками
-    """   
-    try: 
-        pd.read_csv('.table_with_not_located_headers.csv', sep = '\t')
-        print(Fore.RED + 'Есть таблицы для которых не найдены заголовки!' + Fore.WHITE)
-        return False
-    except pd.errors.EmptyDataError:
-        print(Fore.GREEN + 'Заголовки найдены для всех таблиц!' + Fore.WHITE)        
-        return True
-
-def check_identical_column_names(list_to_check):
-    list_to_check = list_to_check
-    identical_column_names_list = []
-    while list_to_check:
-        i = list_to_check[0]
-        list_to_check = list_to_check[1:]
-        if i in list_to_check and i not in identical_column_names_list:
-            identical_column_names_list.append(i)
-    return identical_column_names_list
-
-    
+ 
 #@start_finish_time
 #@proceed_type('"Отобразить .headers.xlsx"')
-def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button):
+def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list):
     """
     Функция открывает файл .headers.xlsx
     """
@@ -442,7 +457,7 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_t
         return
     """
 
-    concat_tables_button.pack_forget()
+    #concat_tables_button.pack_forget()
     
     if not get_headers(tables_from_sheets_dict, sheets_for_processing_list):
         return
@@ -455,47 +470,46 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_t
     wb.RefreshAll()
 
     if check_multiple_headers() and check_no_header():
-        concat_tables_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
+        pass
+        #concat_tables_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
         
 
   
-#wb = open_headers_xls()
-"""
-while True:
-    input("Пробуем")
-    open_headers_xls()
-"""
+
 
 
 @start_finish_time
 @proceed_type('"Объединение таблиц"')
-def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, get_headers_button, concat_tables_button):
-    if os.path.exists(os.path.join(os.getcwd(),'~$.statistics.xlsx')):
-        messagebox.showerror(TITLE,'Закройте таблицу .statistics.xlsx и повторите попытку!')
-        return
+def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_tables_button):
+    # Проверяем не открыты ли файлы, которые могут быть открыты в ходе выполения скрипта   
+    if not check_files_isnt_open(TITLE): return
+
     # Проверяем не менялись ли исходники
-    if not check_books (get_headers_button,concat_tables_button): return
+    if not check_books (): return
+
+    # Проверяем для всех листов заполнено "ДА" или ПУСТО в колонке "Добавить" книги .sheets.xlsx
+    if not check_unmade_decisions(): return
+
     
-    # Проверяем не менялся ли список листов которые нужно собрать
     sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
     sheets_for_processing_df.fillna('', inplace=True)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list_actual = []
     sheets_for_processing_list_cant_add = []
 
+    # Проверяем не менялся ли список листов которые нужно собрать  
     for row in sheets_for_processing_df.itertuples():
         sheets_for_processing_list_actual.append(row[1:4]+row[7:])
     if  sorted(sheets_for_processing_list_actual) != sorted(sheets_for_processing_list):
-        concat_tables_button.pack_forget()
-        messagebox.showwarning(TITLE, "Изменился список листов, таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!")   
+        #concat_tables_button.pack_forget()
+        messagebox.showwarning(TITLE, "Изменился список листов, таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!")  
+        open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list) 
         return
 
-    
+        
 
     
-    if not check_no_header():
-        return
-    if not check_multiple_headers():
+    if not check_no_header() or not check_multiple_headers():
        return
     
     total_table_df = pd.DataFrame()
@@ -515,7 +529,7 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, get_heade
                 else:
                     column_name = column_name_raw
                 column_names.append(column_name)
-            identical_column_names = ', '.join(list(map(str,check_identical_column_names(column_names))))
+            identical_column_names = ', '.join(list(map(str, check_identical_column_names(column_names))))
             if identical_column_names:
                 sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3])#.copy()
                 sheet_for_processing_list_cant_add.append('Колонки: ' + identical_column_names + ' встречаются более одного раза!')

@@ -1,5 +1,16 @@
 import tkinter
 
+VERSION = 2
+TITLE = "CONCAT_YOUR_EXCELS v/%s"%(VERSION)
+developers_message = """
+    Приложение работает не так как ожидалось?
+    Есть идеи что добавить или улучшить?
+    Хотите угостить разработчиков кофе?
+    Всегда рады будем с Вами пообщаться!
+    Пишите нам на электронку:
+    TsvetkovDS@trcont.ru
+"""
+
 def keys(event): # Функция чтобы работала вставка из буфера в русской раскладке
     import ctypes
     u = ctypes.windll.LoadLibrary("user32.dll")
