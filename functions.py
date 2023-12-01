@@ -18,11 +18,13 @@ warnings.filterwarnings('ignore')
 def check_files_isnt_open (TITLE):
     for file in ['.sheets.xlsx','.headers.xlsx','.statistics.xlsx']:
         if os.path.exists(os.path.join(os.getcwd(),'~$' + file)):
-            messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsx и повторите попытку!')
+            sw_message = f'Закройте таблицу {file} и повторите попытку!'
+            print(Fore.YELLOW + sw_message.replace('\n', ' ') + Fore.WHITE)
+            messagebox.showwarning(TITLE,sw_message)
             return  False
     return True
 
-def check_books ():
+def check_books (concat_tables_button):
     """
     Проверяем не были ли изменения в файлах в папке Исходники
     """
@@ -53,13 +55,13 @@ def check_books ():
     if len(compare_df) != len(sheets_in_csv_df) or len(compare_df) != len(sheets_df):
         messagebox.showwarning(TITLE,'Книги в папке "Исходники" были добавлены или удалены или измененены.\nПросмотрите листы, чтобы обновить информацию!')
         #get_headers_button.pack_forget()
-        #concat_tables_button.pack_forget()
+        concat_tables_button.pack_forget()
         get_sheets()
         return False
     else:
         return True
 
-def check_multiple_headers():
+def check_multiple_headers(concat_tables_button):
     try:
         headers_df = pd.read_csv('.headers.csv', sep ='\t')
     except pd.errors.EmptyDataError:
@@ -77,10 +79,11 @@ def check_multiple_headers():
         print(Fore.GREEN + 'Случаи когда в одной таблице обнаружены несколько заголовков отсутствуют!' + Fore.WHITE)
         return True
     else:
+        concat_tables_button.pack_forget()
         print(Fore.RED + 'Есть случаи когда в одной таблице обнаружены несколько заголовков!\nДобавьте неправильные закголвки в таблицу на листе Exceptions!' + Fore.WHITE)
         return False
 
-def check_no_header(): 
+def check_no_header(tables_from_sheets_dict,sheets_for_processing_list): 
     """
     Возвращает истину если нет таблиц с необнаружеными заголовками
     """   
@@ -102,7 +105,7 @@ def check_identical_column_names(list_to_check):
             identical_column_names_list.append(i)
     return identical_column_names_list
 
-def check_unmade_decisions():
+def check_unmade_decisions(concat_tables_button):
     df = pd.read_excel('.sheets.xlsx')
     df = df.fillna('',inplace = False)
     #print(df)
@@ -111,14 +114,20 @@ def check_unmade_decisions():
     #print(df[(df['Добавить'] == '') | (df['Добавить'] == 'ДА')])
     #print(len(df[(df['Добавить'] == '') | (df['Добавить'] == 'ДА')]) == len(df))
     if len(df[(df['Добавить'] == '') | (df['Добавить'] == 'ДА')]) != len(df):
-        messagebox.showwarning(TITLE,'Для некоторых листов не принято решение нужно ли их добавлять в итоговую таблицу!\nВведите в колонку "Добавить" значение "ДА" для листов которые нужно добавлять, для остальных - пустое значение!')
+        sw_message = 'Для некоторых листов не принято решение нужно ли их добавлять в итоговую таблицу!\nВведите в колонку "Добавить" значение "ДА" для листов которые нужно добавлять, для остальных - пустое значение!'
+        print(Fore.YELLOW + sw_message.replace('\n',' '))
+        messagebox.showwarning(TITLE,sw_message)
         get_sheets()
         return False
-    else:
+    elif len(df[df['Добавить'] == '']) == len(df):
+        sw_message = 'Ни один из листов в книгах из папки Исходники не оторбран для добавления в итоговую таблицу!\nВведите в колонку "Добавить" значение "ДА" для листов которые нужно добавлять, для остальных - пустое значение!'
+        print(Fore.YELLOW + sw_message.replace('\n',' '))
+        messagebox.showwarning(TITLE,sw_message )
+        concat_tables_button.pack_forget()
+        get_sheets()
+        return False       
+    else:    
         return True
-    
-
-
 
 def proceed_type(proceed_type):
     def wrapper(func):
@@ -129,18 +138,19 @@ def proceed_type(proceed_type):
 def start_finish_time(func):
     def wrapper(*args, **kwargs):
         start = datetime.now()
-        print(Fore.YELLOW + '\n', start,'\tОбработка %s стартовала...'%(func.proceed_type) + Fore.WHITE)
+        print(Fore.BLUE + '\n', start,'\tОбработка %s стартовала...'%(func.proceed_type) + Fore.WHITE)
         value = func(*args, **kwargs)
         finish = datetime.now()
-        print(Fore.YELLOW, finish,'\tОбработка %s завершена!\n'%(func.proceed_type) + Fore.WHITE)
+        print(Fore.CYAN, finish,'\tОбработка %s завершена!\n'%(func.proceed_type) + Fore.WHITE)
         return value
     return wrapper
 
 def get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list):
-    
+    print(Fore.WHITE + f'Папка: {folder} Книга: {file} сканируем листы...')    
     file_in_csv_info_df = sheets_in_csv_df[(sheets_in_csv_df['Папка'] == folder) &
                                             (sheets_in_csv_df['Книга']  == file)]#  &
-        
+
+    
     if  ((len(file_in_csv_info_df) > 0 and file_in_csv_info_df['Последнее обновление исходника'].iloc[0] != int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))) or 
          len(file_in_csv_info_df) == 0):
 
@@ -174,8 +184,8 @@ def get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list):
                                     sheet.max_column,
                                     int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))
                                     ])
-            print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')                                
-            print(Fore.GREEN + f'- Лист: {sheet.title} Строк: {sheet.max_row} Колонок: {sheet.max_column}' + Fore.WHITE)
+            #print(Fore.BLACK + f'Папка: {folder} Книга: {file}', end = ' ')                                
+            print(Fore.GREEN + f'Лист: {sheet.title} Строк: {sheet.max_row} Колонок: {sheet.max_column}' + Fore.WHITE)
     
     else:
         for sheet in file_in_csv_info_df.itertuples():
@@ -197,8 +207,8 @@ def get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list):
                     sheet_in_xlsx_info_df['Сколько колонок нужно'].iloc[0],
                     int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))
                     ])
-            print(Fore.WHITE + f'Папка: {folder} Книга: {file}', end = ' ')                                
-            print(Fore.GREEN + f'- Лист: {sheet[3]} параметры уже были получены' + Fore.WHITE)
+            #print(Fore.BLACK + f'Папка: {folder} Книга: {file}', end = ' ')                                
+            print(Fore.GREEN + f'Лист: {sheet[3]} параметры уже были получены' + Fore.WHITE)
     
     #print(Fore.GREEN + '', folder, file,os.path.getmtime(os.path.join(os.getcwd(),folder,file)) ) 
     #print(Fore.GREEN + '', folder, sheet_in_csv_info_df['Последнее обновление исходника'].iloc[0] )     
@@ -215,10 +225,6 @@ def get_sheets():
     Затем функция открывает на рабочем столе файл .sheets.xlsx
     """
     if not check_files_isnt_open(TITLE): return 
-
-    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsx')):
-        messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsx и повторите попытку!')
-        return
 
     source_folder = os.walk('Исходники')
     sheets_list = []
@@ -272,24 +278,6 @@ def get_sheets():
     if sheets_list != []:
         pass
         #get_headers_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
-
-"""
-if __name__ == '__main__':   
-    get_sheets()
-
-@start_finish_time
-@proceed_type('"Открываем файл с листами в книгах"')
-def show_sheets():
-    #print('dfg')
-    if os.path.exists(os.path.join(os.getcwd(),'~$.sheets.xlsx')):
-        messagebox.showerror(TITLE,'Закройте таблицу .sheets.xlsx и повторите попытку!')
-        return
-    else:
-        fileName = os.path.join(os.getcwd(),'.sheets.xlsx')
-        xl_show_sheets = win32com.client.DispatchEx("Excel.Application")
-        xl_show_sheets.Workbooks.Open(fileName)
-        xl_show_sheets.Visible = True   
-"""
 
 @start_finish_time
 @proceed_type('"Создание списка таблиц"')
@@ -407,13 +395,15 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
                 header_df.insert(5, 'По признаку' , sign)
                 header_df.fillna('')
                 #table_from_sheets_list['Строка заголовка']  = (header_df['Строка'].iloc[0])
+                #print(Fore.MAGENTA,exceptions_list)
+                #print(Fore.MAGENTA,header_list)
                 if header_list not in exceptions_list:
                     table_headers_df = table_headers_df._append(header_df)
                     #print(table_headers_df)
                     tables_from_sheets_dict[(sheet_for_processing_list)]['Строка заголовка']  = table_headers_df.index[0]
                     #print(table_from_sheets_list['Строка заголовка'] )
                 else:
-                    print(Fore.RED + ' - есть заголовок из списка исключений' + Fore.WHITE, end = ' ')
+                    print(Fore.YELLOW + ' - есть заголовок из списка исключений' + Fore.WHITE, end = ' ')
                 
                 #input()
             #print('table_headers_df\n',table_headers_df)
@@ -422,7 +412,8 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
             table_headers_df = pd.DataFrame([{'Папка':sheet_for_processing_list[0],
                                               'Книга':sheet_for_processing_list[1],
                                               'Лист':sheet_for_processing_list[2],
-                                              'Строка':'',
+                                              #!!!!!!!!!!!!!!!!!!!!!!!
+                                              'Строка в исходнике':'',
                                               'Найден по колонке':'',
                                               'По признаку':''
                                               }])
@@ -442,13 +433,20 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
  
 #@start_finish_time
 #@proceed_type('"Отобразить .headers.xlsx"')
-def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list):
+def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button):
+
     """
     Функция открывает файл .headers.xlsx
     """
-    if os.path.exists(os.path.join(os.getcwd(),'~$.headers.xlsx')):
-        messagebox.showerror(TITLE,'Закройте таблицу .headers.xlsx и повторите попытку!')
-        return
+    concat_tables_button.pack_forget()
+    if not check_files_isnt_open (TITLE): return
+        
+    # Проверяем не менялись ли исходники
+    if not check_books (concat_tables_button): return
+
+    # Проверяем для всех листов заполнено "ДА" или ПУСТО в колонке "Добавить" книги .sheets.xlsx
+    if not check_unmade_decisions(concat_tables_button): return
+
     """
     if len(sheets_for_processing_df) != len(sheets_for_processing_df [(sheets_for_processing_df ['Добавить'] == 'ДА') | (sheets_for_processing_df ['Добавить'] =='')]):
         get_headers_button.pack_forget()
@@ -457,27 +455,24 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list):
         return
     """
 
-    #concat_tables_button.pack_forget()
-    
-    if not get_headers(tables_from_sheets_dict, sheets_for_processing_list):
-        return
-
-
-    fileName = os.path.join(os.getcwd(),'.headers.xlsx')
-    xl = win32com.client.DispatchEx("Excel.Application")
-    wb = xl.Workbooks.Open(fileName)
-    xl.Visible = True
-    wb.RefreshAll()
-
-    if check_multiple_headers() and check_no_header():
-        pass
-        #concat_tables_button.pack(anchor = CENTER, pady = (25,0), padx=(0,0))
+    get_headers(tables_from_sheets_dict, sheets_for_processing_list)
+ 
+    if check_multiple_headers(concat_tables_button) and check_no_header(tables_from_sheets_dict,sheets_for_processing_list):
+        fileName = os.path.join(os.getcwd(),'.headers.xlsx')
+        xl = win32com.client.DispatchEx("Excel.Application")
+        wb = xl.Workbooks.Open(fileName)
+        xl.Visible = True
+        wb.RefreshAll() 
+        concat_tables_button.pack(anchor = CENTER, pady=(25,0))         
+        return True
+    else:
+        fileName = os.path.join(os.getcwd(),'.headers.xlsx')
+        xl = win32com.client.DispatchEx("Excel.Application")
+        wb = xl.Workbooks.Open(fileName)
+        xl.Visible = True
+        wb.RefreshAll() 
+        return False
         
-
-  
-
-
-
 @start_finish_time
 @proceed_type('"Объединение таблиц"')
 def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_tables_button):
@@ -485,12 +480,13 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
     if not check_files_isnt_open(TITLE): return
 
     # Проверяем не менялись ли исходники
-    if not check_books (): return
+    if not check_books (concat_tables_button): return
 
     # Проверяем для всех листов заполнено "ДА" или ПУСТО в колонке "Добавить" книги .sheets.xlsx
-    if not check_unmade_decisions(): return
+    if not check_unmade_decisions(concat_tables_button): return
 
-    
+    #if not open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list): return 
+
     sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
     sheets_for_processing_df.fillna('', inplace=True)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
@@ -502,14 +498,18 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
         sheets_for_processing_list_actual.append(row[1:4]+row[7:])
     if  sorted(sheets_for_processing_list_actual) != sorted(sheets_for_processing_list):
         #concat_tables_button.pack_forget()
-        messagebox.showwarning(TITLE, "Изменился список листов, таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!")  
-        open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list) 
+        #open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button)
+        sw_message = "Изменился список листов, таблицы с которых нужно объеденить.\nТребуется пересобрать заголовки!"
+        print(Fore.YELLOW + sw_message.replace('\n', ' ') + Fore.WHITE)
+        messagebox.showwarning(TITLE, sw_message)  
+        concat_tables_button.pack_forget()
         return
 
         
 
     
-    if not check_no_header() or not check_multiple_headers():
+    if not check_no_header(tables_from_sheets_dict,sheets_for_processing_list) or not check_multiple_headers(concat_tables_button):
+       open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button)
        return
     
     total_table_df = pd.DataFrame()
@@ -561,15 +561,15 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
     total_table_df.index.rename('Строка в итоговой таблице', inplace= True )
 
 
-    print(Fore.YELLOW + '', datetime.now(),'\t записываем результат в RESULT.csv' + Fore.WHITE)
+    print(Fore.BLUE + '', datetime.now(),'\t записываем результат в RESULT.csv' + Fore.WHITE)
     total_table_df.to_csv('RESULT.csv', sep ='\t')
-    print(Fore.YELLOW + '', datetime.now(),'\t результат записан в RESULT.csv' + Fore.WHITE)
+    print(Fore.CYAN + '', datetime.now(),'\t результат записан в RESULT.csv' + Fore.WHITE)
 
 
 
 
 
-    print(Fore.YELLOW + '', datetime.now(),'\t проверяем правильно ли всё записалось' + Fore.WHITE) 
+    print(Fore.BLUE + '', datetime.now(),'\t проверяем правильно ли всё записалось' + Fore.WHITE) 
     #print(sheets_for_processing_list)
     #tables_size_list = [(sheet_for_processing_list[0],sheet_for_processing_list[1],sheet_for_processing_list[2],sheet_for_processing_list[3],sheet_for_processing_list[4],tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
     sheets_for_processing_list =  [(*sheet_for_processing_list,tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
@@ -600,30 +600,45 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
     compare_df.index.rename('№', inplace= True )
     #print(compare_df)                                           
     compare_df.to_csv('.statistics.csv')
-    print(Fore.YELLOW + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)   
+    print(Fore.CYAN + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)   
     
-    
-    if len(sheets_for_processing_list_cant_add) > 0:
-        print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
-        for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
-            print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
-        messagebox.showwarning(TITLE, "Таблицы объеденены,\n*** НО НЕ ВСЕ ***!\nРезультат записан в RESULT.csv'")   
-    else:
-        messagebox.showinfo(TITLE, "Таблицы объеденены. Результат записан в RESULT.csv'")
-    if not total_table_df_info.equals(total_table_df_from_csv_info):
-        messagebox.showerror(TITLE, 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!')
-    
-    total_table_df_from_csv_len = len(open('RESULT.csv',encoding='utf-8').readlines())
-
-    if (total_table_df_from_csv_len - 1) != len(total_table_df):
-        messagebox.showerror(TITLE, 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!')
-
-
-    if not total_table_df_info.equals(total_table_df_from_csv_info):
-        messagebox.showerror(TITLE, 'Таблицы объеденены, но почему-то агрегированные значения в RESULT.csv не совпадают с агрегированными значениями в total_table_df!')
-
     fileName = os.path.join(os.getcwd(),'.statistics.xlsx')
     xl = win32com.client.DispatchEx("Excel.Application")
     wb = xl.Workbooks.Open(fileName)
     xl.Visible = True
     wb.RefreshAll()
+
+    if len(sheets_for_processing_list_cant_add) > 0:
+        print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
+        for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
+            print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
+        sw_message = "Таблицы объеденены,\n*** НО НЕ ВСЕ ***!\nРезультат записан в RESULT.csv"
+        print(Fore.YELLOW + sw_message.replace('\n', ' ') + Fore.WHITE)
+        messagebox.showwarning(TITLE, sw_message)   
+    else:
+        si_message = "  Таблицы объеденены. Результат записан в RESULT.csv"
+        print(Fore.MAGENTA + '-'*54,si_message.replace('\n', ' '),'-'*54 + Fore.WHITE, sep ='\n')
+        messagebox.showinfo(TITLE, si_message)
+    
+    
+    
+    
+    
+    
+    if not total_table_df_info.equals(total_table_df_from_csv_info):
+        se_message = 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!'
+        print(Fore.RED + '!'*50 + se_message.replace('\\n', ' ') + '!'*50 + Fore.WHITE)
+        messagebox.showerror(TITLE, se_message)
+    
+    total_table_df_from_csv_len = len(open('RESULT.csv',encoding='utf-8').readlines())
+
+    if (total_table_df_from_csv_len - 1) != len(total_table_df):
+        se_message = 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!'
+        print(Fore.RED + se_message.replace('\n', ' ') + Fore.WHITE)
+        messagebox.showerror(TITLE, se_message)
+
+
+    if not total_table_df_info.equals(total_table_df_from_csv_info):
+        se_message = 'Таблицы объеденены, но почему-то агрегированные значения в RESULT.csv не совпадают с агрегированными значениями в total_table_df!'
+        print(Fore.RED + se_message.replace('\\n', ' ') + Fore.WHITE)
+        messagebox.showerror(TITLE, se_message)
