@@ -361,6 +361,7 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
 
     exceptions_list = get_exceptions()
     if not get_tables_from_sheets(tables_from_sheets_dict,sheets_for_processing_list):
+        get_sheets()
         return False
     headers_specifications_df = pd.read_excel('.headers.xlsx', sheet_name = 'Settings')  #print(headers_specifications_df)  
 
@@ -434,6 +435,7 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
 #@start_finish_time
 #@proceed_type('"Отобразить .headers.xlsx"')
 def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button):
+    concat_tables_button.pack_forget()
 
     """
     Функция открывает файл .headers.xlsx
@@ -455,7 +457,7 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_t
         return
     """
 
-    get_headers(tables_from_sheets_dict, sheets_for_processing_list)
+    if not get_headers(tables_from_sheets_dict, sheets_for_processing_list): return
  
     if check_multiple_headers(concat_tables_button) and check_no_header(tables_from_sheets_dict,sheets_for_processing_list):
         fileName = os.path.join(os.getcwd(),'.headers.xlsx')
@@ -620,7 +622,7 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
         print(Fore.MAGENTA + '-'*54,si_message.replace('\n', ' '),'-'*54 + Fore.WHITE, sep ='\n')
         messagebox.showinfo(TITLE, si_message)
     
-    
+    concat_tables_button.pack_forget()
     
     
     
