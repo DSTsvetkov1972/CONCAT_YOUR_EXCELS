@@ -14,6 +14,19 @@ from service_functions import *
 import warnings
 warnings.filterwarnings('ignore')
 
+def check_service_files_headers():
+    df = pd.read_excel(".sheets.xlsx")
+    if list(df.columns) != ['Папка', 'Книга', 'Лист', 'Строк на листе', 'Столбцов на листе', 'Добавить', 'Сколько строк нужно', 'Сколько колонок нужно']:
+        se_message = "Таблица в файле .sheets.xlsx должна иметь следующие заголовки:\n'Папка', 'Книга', 'Лист', 'Строк на листе', 'Столбцов на листе', 'Добавить', 'Сколько строк нужно', 'Сколько колонок нужно'.\nПоправьте заголовки и посторите попытку!"
+        print(Fore.RED + se_message.replace('\n', ' ') + Fore.WHITE)
+        messagebox.showerror(TITLE,se_message)
+        fileName = os.path.join(os.getcwd(),'.sheets.xlsx')
+        xl_get_sheets = win32com.client.DispatchEx("Excel.Application")
+        xl_get_sheets.Workbooks.Open(fileName)
+        xl_get_sheets.Visible = True
+        return False    
+    return True
+
 
 def check_files_isnt_open (TITLE):
     for file in ['.sheets.xlsx','.headers.xlsx','.statistics.xlsx']:
@@ -226,6 +239,8 @@ def get_sheets():
     """
     if not check_files_isnt_open(TITLE): return 
 
+    if not check_service_files_headers(): return
+
     source_folder = os.walk('Исходники')
     sheets_list = []
     if os.path.exists('.sheets.csv'):   
@@ -437,12 +452,10 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
 def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_tables_button):
     concat_tables_button.pack_forget()
 
-    """
-    Функция открывает файл .headers.xlsx
-    """
-    concat_tables_button.pack_forget()
     if not check_files_isnt_open (TITLE): return
-        
+
+    if not check_service_files_headers(): return
+
     # Проверяем не менялись ли исходники
     if not check_books (concat_tables_button): return
 
@@ -480,6 +493,8 @@ def open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list,concat_t
 def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_tables_button):
     # Проверяем не открыты ли файлы, которые могут быть открыты в ходе выполения скрипта   
     if not check_files_isnt_open(TITLE): return
+
+    if not  check_service_files_headers(): return
 
     # Проверяем не менялись ли исходники
     if not check_books (concat_tables_button): return
