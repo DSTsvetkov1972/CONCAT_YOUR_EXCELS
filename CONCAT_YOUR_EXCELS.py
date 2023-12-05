@@ -18,6 +18,8 @@ print("                                  %s                      "%(TITLE))
 print("-----------------------------------------------------------------------------------------")
 
 if fn.check_files_isnt_open(TITLE):
+
+      
       tables_from_sheets_dict = {}
       sheets_for_processing_list = []
 

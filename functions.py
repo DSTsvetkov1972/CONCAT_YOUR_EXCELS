@@ -163,7 +163,8 @@ def get_book_info(folder,file,sheets_in_csv_df,sheets_in_xlsx_df,sheets_list):
     file_in_csv_info_df = sheets_in_csv_df[(sheets_in_csv_df['Папка'] == folder) &
                                             (sheets_in_csv_df['Книга']  == file)]#  &
 
-    
+    #print(Fore.RED, len(file_in_csv_info_df))
+    #print(Fore.GREEN, len(sheets_in_xlsx_df))
     if  ((len(file_in_csv_info_df) > 0 and file_in_csv_info_df['Последнее обновление исходника'].iloc[0] != int(os.path.getmtime(os.path.join(os.getcwd(),folder,file)))) or 
          len(file_in_csv_info_df) == 0):
 
@@ -243,11 +244,18 @@ def get_sheets():
 
     source_folder = os.walk('Исходники')
     sheets_list = []
+
+    sheets_in_xlsx_df = pd.read_excel('.sheets.xlsx', header = 0)
+    if len(sheets_in_xlsx_df) == 0:
+        try: 
+            os.remove('.sheets.csv') 
+        except: 
+            pass
     if os.path.exists('.sheets.csv'):   
         sheets_in_csv_df = pd.read_csv('.sheets.csv', sep ='\t')
     else:
         sheets_in_csv_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
-    sheets_in_xlsx_df = pd.read_excel('.sheets.xlsx', header = 0)
+    
     #print(sheets_in_xlsx_df)
 
 
