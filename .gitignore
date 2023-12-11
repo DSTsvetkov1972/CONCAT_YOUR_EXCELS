@@ -6,4 +6,4 @@ output
 2022
 2023
 test*
-RESULT.csv
+*.csv
