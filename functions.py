@@ -352,6 +352,9 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
                         print(Fore.RED + error_message)
                         messagebox.showerror(TITLE,error_message.replace('\\n',''))
                         return False
+                    
+                    table = table.map(lambda x: str(x).replace(chr(10),'')) #Зменяем перносы строк и табулияции
+                    table = table.map(lambda x: str(x).replace('\t','')) #Зменяем перносы строк и табулияции
                     table.insert(0, 'Папка' , folder)
                     table.insert(1, 'Книга' , book) 
                     table.insert(2, 'Лист'  , sheet)
