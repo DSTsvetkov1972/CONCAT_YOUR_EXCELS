@@ -245,14 +245,16 @@ def get_sheets():
     source_folder = os.walk('Исходники')
     sheets_list = []
 
-    sheets_in_xlsx_df = pd.read_excel('.sheets.xlsx', header = 0)
+    sheets_in_xlsx_df = pd.read_excel('.sheets.xlsx', header = 0, dtype= {'Лист':str})
     if len(sheets_in_xlsx_df) == 0:
         try: 
             os.remove('.sheets.csv') 
         except: 
             pass
     if os.path.exists('.sheets.csv'):   
-        sheets_in_csv_df = pd.read_csv('.sheets.csv', sep ='\t')
+        sheets_in_csv_df = pd.read_csv('.sheets.csv', sep ='\t', dtype = {'Лист':str})
+        #print(sheets_in_csv_df)
+        #print(Fore.MAGENTA, sheets_in_csv_df)
     else:
         sheets_in_csv_df = pd.DataFrame(columns=['Папка', 'Книга','Последнее обновление исходника'])
     
@@ -308,7 +310,7 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
     #print('tables_from_sheets_dict_ДО\n',tables_from_sheets_dict.keys())
 
     # если поменялись отобранные листы, то проверяем какие таблицы нужно загрузить
-    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
+    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0, dtype = {'Лист':str})
     sheets_for_processing_df['Лист'] = sheets_for_processing_df['Лист'].apply(str)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list.clear()
@@ -518,7 +520,7 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
 
     #if not open_headers_xls(tables_from_sheets_dict,sheets_for_processing_list): return 
 
-    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
+    sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0, dtype = {'Лист':str})
     sheets_for_processing_df.fillna('', inplace=True)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list_actual = []
@@ -582,94 +584,97 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
         #    print(total_table_df)
             
             #print(Fore.CYAN + 'total_table_df\n' + Fore.CYAN,total_table_df)
-      
-    total_table_df = total_table_df.replace('',np.nan)
-    total_table_df_columns = total_table_df.columns[4:]
-    total_table_df = total_table_df.dropna(axis=0,subset=total_table_df_columns,how='all')
-    total_table_df = total_table_df.dropna(axis=1, how = 'all')
-    total_table_df = total_table_df.fillna('')
-    total_table_df = total_table_df.map(lambda x: str(x).replace(chr(10),''))#.replace(r'\n','\\n'))
-    total_table_df.index.rename('Строка в итоговой таблице', inplace= True )
 
-
-    print(Fore.BLUE + '', datetime.now(),'\t записываем результат в RESULT.csv' + Fore.WHITE)
-    total_table_df.to_csv('RESULT.csv', sep ='\t')
-    print(Fore.CYAN + '', datetime.now(),'\t результат записан в RESULT.csv' + Fore.WHITE)
-
-
-
-
-
-    print(Fore.BLUE + '', datetime.now(),'\t проверяем правильно ли всё записалось' + Fore.WHITE) 
-    #print(sheets_for_processing_list)
-    #tables_size_list = [(sheet_for_processing_list[0],sheet_for_processing_list[1],sheet_for_processing_list[2],sheet_for_processing_list[3],sheet_for_processing_list[4],tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
-    sheets_for_processing_list =  [(*sheet_for_processing_list,tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
-    sheets_for_processing_df = pd.DataFrame(sheets_for_processing_list, columns = ['Папка','Книга','Лист','Строк для сканирования','Колонок для сканирования','Размер датафрейма (кБ)'])
-    #print(tables_size_df)
-    total_table_df_info = total_table_df.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()   
-    total_table_df_from_csv = pd.read_csv('RESULT.csv', sep ='\t')
-    total_table_df_from_csv_info  = total_table_df_from_csv.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()
-    cant_add_df = pd.DataFrame(sheets_for_processing_list_cant_add, columns=['Папка','Книга','Лист','Комментарий'])
-
-    compare_df = sheets_for_processing_df.merge(total_table_df_from_csv_info,
-                                           on = ['Папка','Книга','Лист'],
-                                           how = 'outer',
-                                           suffixes=('_Итоговая таблица', '_Загружено в CSV'))
-    compare_df = compare_df.merge(total_table_df_from_csv_info,
-                                  on = ['Папка','Книга','Лист'],
-                                  how = 'outer')
-    compare_df = compare_df.fillna(0)
-    compare_df = compare_df.merge(cant_add_df,
-                                  on = ['Папка','Книга','Лист'],
-                                  how = 'outer')
-    compare_df = compare_df.fillna('')
-    compare_df = compare_df.rename(columns={'Строка в исходнике_x':'В итоговой таблице после удаления пустых строк','Строка в исходнике_y':'Загружено в CSV'})                                            
-    
-    compare_df['Строк для сканирования']                         = compare_df['Строк для сканирования'].apply(int) 
-    compare_df['В итоговой таблице после удаления пустых строк'] = compare_df['В итоговой таблице после удаления пустых строк'].apply(int)
-    compare_df['Загружено в CSV']                                = compare_df['Загружено в CSV'].apply(int)
-    compare_df.index.rename('№', inplace= True )
-    #print(compare_df)                                           
-    compare_df.to_csv('.statistics.csv')
-    print(Fore.CYAN + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)   
-    
-    fileName = os.path.join(os.getcwd(),'.statistics.xlsx')
-    xl = win32com.client.DispatchEx("Excel.Application")
-    wb = xl.Workbooks.Open(fileName)
-    xl.Visible = True
-    wb.RefreshAll()
-
-    if len(sheets_for_processing_list_cant_add) > 0:
-        print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
-        for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
-            print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
-        sw_message = "Таблицы объеденены,\n*** НО НЕ ВСЕ ***!\nРезультат записан в RESULT.csv"
-        print(Fore.YELLOW + sw_message.replace('\n', ' ') + Fore.WHITE)
-        messagebox.showwarning(TITLE, sw_message)   
+    if len(total_table_df) == 0:
+        wm_message = "  В результате получилась пустая итоговая таблица!"
+        print(Fore.YELLOW + '-' *54, wm_message.replace('\n', ' '),'-'*54 + Fore.WHITE, sep ='\n')
+        messagebox.showwarning(TITLE, wm_message)
     else:
-        si_message = "  Таблицы объеденены. Результат записан в RESULT.csv"
-        print(Fore.MAGENTA + '-'*54,si_message.replace('\n', ' '),'-'*54 + Fore.WHITE, sep ='\n')
-        messagebox.showinfo(TITLE, si_message)
-    
+        total_table_df = total_table_df.replace('',np.nan)
+        total_table_df_columns = total_table_df.columns[4:]
+        total_table_df = total_table_df.dropna(axis=0,subset=total_table_df_columns,how='all')
+        total_table_df = total_table_df.dropna(axis=1, how = 'all')
+        total_table_df = total_table_df.fillna('')
+        total_table_df = total_table_df.map(lambda x: str(x).replace(chr(10),''))#.replace(r'\n','\\n'))
+        total_table_df.index.rename('Строка в итоговой таблице', inplace= True )
+
+
+        print(Fore.BLUE + '', datetime.now(),'\t записываем результат в RESULT.csv' + Fore.WHITE)
+        total_table_df.to_csv('RESULT.csv', sep ='\t')
+        print(Fore.CYAN + '', datetime.now(),'\t результат записан в RESULT.csv' + Fore.WHITE)
+
+        print(Fore.BLUE + '', datetime.now(),'\t проверяем правильно ли всё записалось' + Fore.WHITE) 
+        #print(sheets_for_processing_list)
+        #tables_size_list = [(sheet_for_processing_list[0],sheet_for_processing_list[1],sheet_for_processing_list[2],sheet_for_processing_list[3],sheet_for_processing_list[4],tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
+        sheets_for_processing_list =  [(*sheet_for_processing_list,tables_from_sheets_dict[sheet_for_processing_list]['Размер датафрейма (кБ)']) for sheet_for_processing_list in sheets_for_processing_list]
+        sheets_for_processing_df = pd.DataFrame(sheets_for_processing_list, columns = ['Папка','Книга','Лист','Строк для сканирования','Колонок для сканирования','Размер датафрейма (кБ)'])
+
+        total_table_df_info = total_table_df.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()   
+        total_table_df_from_csv = pd.read_csv('RESULT.csv', sep ='\t', dtype = {'Лист':str})
+        total_table_df_from_csv_info  = total_table_df_from_csv.groupby(['Папка','Книга','Лист'])['Строка в исходнике'].agg('count').to_frame()
+        cant_add_df = pd.DataFrame(sheets_for_processing_list_cant_add, columns=['Папка','Книга','Лист','Комментарий'])
+
+        compare_df = sheets_for_processing_df.merge(total_table_df_from_csv_info,
+                                            on = ['Папка','Книга','Лист'],
+                                            how = 'outer',
+                                            suffixes=('_Итоговая таблица', '_Загружено в CSV'))
+        compare_df = compare_df.merge(total_table_df_from_csv_info,
+                                    on = ['Папка','Книга','Лист'],
+                                    how = 'outer')
+        compare_df = compare_df.fillna(0)
+        compare_df = compare_df.merge(cant_add_df,
+                                    on = ['Папка','Книга','Лист'],
+                                    how = 'outer')
+        compare_df = compare_df.fillna('')
+        compare_df = compare_df.rename(columns={'Строка в исходнике_x':'В итоговой таблице после удаления пустых строк','Строка в исходнике_y':'Загружено в CSV'})                                            
+        
+        compare_df['Строк для сканирования']                         = compare_df['Строк для сканирования'].apply(int) 
+        compare_df['В итоговой таблице после удаления пустых строк'] = compare_df['В итоговой таблице после удаления пустых строк'].apply(int)
+        compare_df['Загружено в CSV']                                = compare_df['Загружено в CSV'].apply(int)
+        compare_df.index.rename('№', inplace= True )
+        #print(compare_df)                                           
+        compare_df.to_csv('.statistics.csv')
+        print(Fore.CYAN + '', datetime.now(),'\t проверка завершена' + Fore.WHITE)   
+        
+        fileName = os.path.join(os.getcwd(),'.statistics.xlsx')
+        xl = win32com.client.DispatchEx("Excel.Application")
+        wb = xl.Workbooks.Open(fileName)
+        xl.Visible = True
+        wb.RefreshAll()
+
+        if len(sheets_for_processing_list_cant_add) > 0:
+            print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
+            for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
+                print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
+            sw_message = "Таблицы объеденены,\n*** НО НЕ ВСЕ ***!\nРезультат записан в RESULT.csv"
+            print(Fore.YELLOW + sw_message.replace('\n', ' ') + Fore.WHITE)
+            messagebox.showwarning(TITLE, sw_message)   
+        else:
+            si_message = "  Таблицы объеденены. Результат записан в RESULT.csv"
+            print(Fore.MAGENTA + '-'*54,si_message.replace('\n', ' '),'-'*54 + Fore.WHITE, sep ='\n')
+            messagebox.showinfo(TITLE, si_message)
+        
+
+        
+        
+        
+        
+        if not total_table_df_info.equals(total_table_df_from_csv_info):
+            se_message = 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!'
+            print(Fore.RED + '!'*50 + se_message.replace('\\n', ' ') + '!'*50 + Fore.WHITE)
+            messagebox.showerror(TITLE, se_message)
+        
+        total_table_df_from_csv_len = len(open('RESULT.csv',encoding='utf-8').readlines())
+
+        if (total_table_df_from_csv_len - 1) != len(total_table_df):
+            se_message = 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!'
+            print(Fore.RED + se_message.replace('\n', ' ') + Fore.WHITE)
+            messagebox.showerror(TITLE, se_message)
+
+
+        if not total_table_df_info.equals(total_table_df_from_csv_info):
+            se_message = 'Таблицы объеденены, но почему-то агрегированные значения в RESULT.csv не совпадают с агрегированными значениями в total_table_df!'
+            print(Fore.RED + se_message.replace('\\n', ' ') + Fore.WHITE)
+            messagebox.showerror(TITLE, se_message)
+
     concat_tables_button.pack_forget()
-    
-    
-    
-    
-    if not total_table_df_info.equals(total_table_df_from_csv_info):
-        se_message = 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!'
-        print(Fore.RED + '!'*50 + se_message.replace('\\n', ' ') + '!'*50 + Fore.WHITE)
-        messagebox.showerror(TITLE, se_message)
-    
-    total_table_df_from_csv_len = len(open('RESULT.csv',encoding='utf-8').readlines())
-
-    if (total_table_df_from_csv_len - 1) != len(total_table_df):
-        se_message = 'Таблицы объеденены, но почему-то в RESULT.csv записалось не то что насобиралось. Наверное исходные таблицы содержат недопустимые символы. Обратитесь к разработчикам для исправления ситуаци!'
-        print(Fore.RED + se_message.replace('\n', ' ') + Fore.WHITE)
-        messagebox.showerror(TITLE, se_message)
-
-
-    if not total_table_df_info.equals(total_table_df_from_csv_info):
-        se_message = 'Таблицы объеденены, но почему-то агрегированные значения в RESULT.csv не совпадают с агрегированными значениями в total_table_df!'
-        print(Fore.RED + se_message.replace('\\n', ' ') + Fore.WHITE)
-        messagebox.showerror(TITLE, se_message)
