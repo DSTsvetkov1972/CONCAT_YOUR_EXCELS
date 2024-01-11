@@ -309,6 +309,7 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
 
     # если поменялись отобранные листы, то проверяем какие таблицы нужно загрузить
     sheets_for_processing_df = pd.read_excel(os.path.join(os.getcwd(),'.sheets.xlsx'), header = 0)
+    sheets_for_processing_df['Лист'] = sheets_for_processing_df['Лист'].apply(str)
     sheets_for_processing_df = sheets_for_processing_df[sheets_for_processing_df['Добавить'] == 'ДА']
     sheets_for_processing_list.clear()
     for row in sheets_for_processing_df.itertuples():
@@ -325,12 +326,12 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
     #print('\ntables_from_sheets_dict != ()\n',tables_from_sheets_dict)
     if sheets_for_processing_df_before.equals(sheets_for_processing_df) and tables_from_sheets_dict != {}: 
         print(Fore.GREEN + 'Список листов, которые нужно загрузить не менялся, таблицы уже загружены!' + Fore.WHITE)
-    else:        
+    else:      
         for row in sheets_for_processing_df.iterrows():
             #try:
                 folder        = row[1]['Папка']
                 book          = row[1]['Книга']
-                sheet         = row[1]['Лист']
+                sheet         = str(row[1]['Лист'])
                 rows_limit    = int(row[1]['Сколько строк нужно'])
                 columns_limit = int(row[1]['Сколько колонок нужно'])
                 print(Fore.WHITE + f'Книга: {folder} Папка: {book} Лист: {sheet}', end =' ')
@@ -353,8 +354,10 @@ def get_tables_from_sheets(tables_from_sheets_dict, sheets_for_processing_list):
                         messagebox.showerror(TITLE,error_message.replace('\\n',''))
                         return False
                     
+                    table = table.fillna('')
                     table = table.map(lambda x: str(x).replace(chr(10),'')) #Зменяем перносы строк и табулияции
                     table = table.map(lambda x: str(x).replace('\t','')) #Зменяем перносы строк и табулияции
+                    
                     table.insert(0, 'Папка' , folder)
                     table.insert(1, 'Книга' , book) 
                     table.insert(2, 'Лист'  , sheet)
@@ -449,7 +452,7 @@ def get_headers(tables_from_sheets_dict, sheets_for_processing_list):
             print(Fore.RED + ' - заголовки не найдены')
         else:
             print(Fore.GREEN + ' - заголовки найдены')
-        
+
         table_with_not_located_headers.to_csv('.table_with_not_located_headers.csv', sep = '\t', index= False)   
         all_tables_headers_df = all_tables_headers_df._append(table_headers_df, ignore_index = True)
         
