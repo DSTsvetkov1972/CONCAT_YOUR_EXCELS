@@ -109,6 +109,7 @@ def check_no_header(tables_from_sheets_dict,sheets_for_processing_list):
         return True
 
 def check_identical_column_names(list_to_check):
+    #print(list_to_check)
     list_to_check = list_to_check
     identical_column_names_list = []
     while list_to_check:
@@ -571,11 +572,23 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
                       Fore.WHITE + identical_column_names,
                       Fore.RED + ' встречаются более одного раза!' + Fore.WHITE)
                 continue
+            elif column_names.count('') > 1:
+                sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3])#.copy()
+                sheet_for_processing_list_cant_add.append('Таблица не может быть обработана так в ней несколько раз встречаются колонки без названий!')
+                sheets_for_processing_list_cant_add.append(sheet_for_processing_list_cant_add)
+                print(Fore.RED + ' - таблица не может быть обработана так в ней несколько раз встречаются колонки без названий!' + Fore.WHITE)
+                continue
             result_table = tables_from_sheets_dict[(sheet_for_processing_list)]['Таблица'][header_row+1:]
             result_table.columns = column_names
             result_table = result_table.dropna(how='all', axis = 1)
-            total_table_df = total_table_df._append(result_table, ignore_index = True)
-            print(Fore.GREEN + ' - данные извлечены и добавлены в итоговую таблицу' + Fore.WHITE)
+            try:
+                total_table_df = total_table_df._append(result_table, ignore_index = True)
+                print(Fore.GREEN + ' - данные извлечены и добавлены в итоговую таблицу' + Fore.WHITE)
+            except:
+                sheet_for_processing_list_cant_add = list(sheet_for_processing_list[:3])
+                sheet_for_processing_list_cant_add.append('Данные не удалось добавить в итоговую таблицу по непредусмотренной причине!')                
+                sheets_for_processing_list_cant_add.append(sheet_for_processing_list_cant_add)
+                print(Fore.RED + ' - данные извлечены, но их не удалось добавить в итоговую таблицу по непредусмотренной причине' + Fore.WHITE)                              
         #except:
         #    sheets_for_processing_list_cant_add.append(sheets_for_processing_list_cant_add)
         #    print(Fore.RED + 'НЕ УДАЛОСЬ ИЗВЛЕЧЬ ДАННЫЕ ПО ПРИЧИНЕ РАНЕЕ НЕ ВСТРЕЧАВШЕЙСЯ! ОБРАТИТЕСЬ К РАЗРАБОТЧИКАМ!')
@@ -644,8 +657,10 @@ def concat_tables(tables_from_sheets_dict, sheets_for_processing_list, concat_ta
 
         if len(sheets_for_processing_list_cant_add) > 0:
             print(Fore.RED + 'ВНИМАНИЕ: НЕКОТОРЫЕ ТАБЛИЦЫ НЕ УДАЛОСЬ ОБРАБОТАТЬ!' + Fore.WHITE)
+            '''
             for sheet_for_processing_list_cant_add in sheets_for_processing_list_cant_add:
                 print(Fore.RED + 'Папка: {} Книга: {} Лист: {} Комментарий: {}'.format(*sheet_for_processing_list_cant_add) + Fore.WHITE)
+            '''
             sw_message = "Таблицы объеденены,\n*** НО НЕ ВСЕ ***!\nРезультат записан в RESULT.csv"
             print(Fore.YELLOW + sw_message.replace('\n', ' ') + Fore.WHITE)
             messagebox.showwarning(TITLE, sw_message)   
